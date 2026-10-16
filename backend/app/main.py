@@ -1,0 +1,262 @@
+import sqlite3
+from contextlib import asynccontextmanager
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+from app.database import inicializar_bd, cargar_menu, conexion_bd
+
+# -------------------------------------------------------------------
+# CONSTANTES DE NEGOCIO (si cambian, se cambian aquí y en ningún otro lado)
+# -------------------------------------------------------------------
+RECARGO_SUADERO = 3
+CARNES_VALIDAS = {"suadero", "pastor", "bistec", "chorizo", "campechanos"}
+
+
+# -------------------------------------------------------------------
+# ARRANQUE
+# -------------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Todo lo que va ANTES del yield se ejecuta al arrancar el servidor.
+    inicializar_bd()
+    cargar_menu()
+    yield
+    # Lo que fuera DESPUÉS del yield se ejecutaría al apagarlo (no necesitamos nada).
+
+
+app = FastAPI(title="API Tacos el Garcita", lifespan=lifespan)
+
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# -------------------------------------------------------------------
+# MODELOS: la forma de los datos que el frontend nos manda
+# -------------------------------------------------------------------
+class ProductoNuevo(BaseModel):
+    num_mesa: int
+    producto_id: int
+    cantidad: int = Field(gt=0)     # debe ser mayor que 0, si no FastAPI responde 422
+    carne: Optional[str] = None     # opcional: bebidas y quesadillas no llevan carne
+
+
+class ActualizarOrden(BaseModel):
+    orden_id: int
+    cantidad: Optional[int] = Field(default=None, gt=0)
+    carne: Optional[str] = None
+
+
+# -------------------------------------------------------------------
+# FUNCIÓN AUXILIAR: la regla de precios vive en UN solo lugar
+# -------------------------------------------------------------------
+def calcular_precio(precio_base: float, lleva_carne: int, carne: Optional[str]):
+    """Devuelve (carne_normalizada, precio_final).
+
+    Lanza 400 si el producto necesita carne y la que llegó no es válida.
+    """
+    if not lleva_carne:
+        return None, precio_base
+
+    carne = (carne or "").lower()
+    if carne not in CARNES_VALIDAS:
+        raise HTTPException(status_code=400, detail="Elige una carne válida para este producto")
+
+    if carne == "suadero":
+        precio_base += RECARGO_SUADERO
+    return carne, precio_base
+
+
+# -------------------------------------------------------------------
+# RUTAS
+# -------------------------------------------------------------------
+@app.get("/")
+def inicio():
+    return {"message": "Bienvenido a la API de Tacos el Garcita"}
+
+
+@app.get("/mesa/estado")
+def estado_mesas():
+    with conexion_bd() as con:
+        abiertas = {fila[0] for fila in con.execute("SELECT num_mesa FROM ordenes;")}
+    return {num: (num in abiertas) for num in range(1, 6)}
+
+
+@app.get("/menu")
+def obtener_menu():
+    with conexion_bd() as con:
+        filas = con.execute(
+            "SELECT producto_id, categoria, nombre, precio, lleva_carne "
+            "FROM productos ORDER BY producto_id;"
+        ).fetchall()
+        return [dict(fila) for fila in filas]
+
+
+@app.get("/ordenes/{num_mesa}/ticket")
+def ver_ticket(num_mesa: int):
+    try:
+        with conexion_bd() as con:
+            existe = con.execute(
+                "SELECT 1 FROM ordenes WHERE num_mesa = ?;", (num_mesa,)
+            ).fetchone()
+            if existe is None:
+                return {"num_mesa": num_mesa, "abierta": False, "productos": [], "total": 0}
+
+            filas = con.execute(
+                "SELECT orden_id, num_mesa, producto_id, nombre, tipo_carne, cantidad, precio "
+                "FROM detalles_ordenes WHERE num_mesa = ? ORDER BY orden_id;",
+                (num_mesa,),
+            ).fetchall()
+
+            productos = [dict(fila) for fila in filas]
+            total = sum(p["precio"] * p["cantidad"] for p in productos)
+
+            return {
+                "num_mesa": num_mesa,
+                "abierta": True,
+                "productos": productos,
+                "total": total,
+            }
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
+
+
+@app.post("/abrir-mesa/{num_mesa}")
+def abrir_mesa(num_mesa: int):
+    try:
+        with conexion_bd() as con:
+            con.execute("INSERT INTO ordenes (num_mesa) VALUES (?);", (num_mesa,))
+        return {"status": "success", "message": f"Mesa {num_mesa} abierta con éxito."}
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail=f"La mesa {num_mesa} ya está abierta.")
+
+
+@app.post("/ordenes/productos")
+def agregar_producto(datos: ProductoNuevo):
+    try:
+        with conexion_bd() as con:
+            # 1. La mesa debe estar abierta
+            mesa = con.execute(
+                "SELECT 1 FROM ordenes WHERE num_mesa = ?;", (datos.num_mesa,)
+            ).fetchone()
+            if mesa is None:
+                raise HTTPException(
+                    status_code=404, detail=f"La mesa {datos.num_mesa} no está abierta."
+                )
+
+            # 2. El producto debe existir en el menú
+            producto = con.execute(
+                "SELECT nombre, precio, lleva_carne FROM productos WHERE producto_id = ?;",
+                (datos.producto_id,),
+            ).fetchone()
+            if producto is None:
+                raise HTTPException(status_code=404, detail="Ese producto no existe en el menú.")
+
+            # 3. El backend decide la carne y el precio, nunca el frontend
+            carne, precio = calcular_precio(
+                producto["precio"], producto["lleva_carne"], datos.carne
+            )
+
+            # 4. Guardamos con "foto" del nombre y del precio al momento de la venta
+            con.execute(
+                "INSERT INTO detalles_ordenes "
+                "(num_mesa, producto_id, cantidad, tipo_carne, nombre, precio) "
+                "VALUES (?, ?, ?, ?, ?, ?);",
+                (datos.num_mesa, datos.producto_id, datos.cantidad, carne, producto["nombre"], precio),
+            )
+
+        return {"status": "success", "message": f"{datos.cantidad} x {producto['nombre']} agregado."}
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
+
+
+@app.put("/ordenes/actualizar")
+def actualizar_producto(datos: ActualizarOrden):
+    try:
+        with conexion_bd() as con:
+            # JOIN: unimos el renglón de la orden con su producto del catálogo
+            fila = con.execute(
+                """
+                SELECT d.cantidad, d.tipo_carne, p.precio AS precio_base, p.lleva_carne
+                FROM detalles_ordenes d
+                JOIN productos p ON p.producto_id = d.producto_id
+                WHERE d.orden_id = ?;
+                """,
+                (datos.orden_id,),
+            ).fetchone()
+
+            if fila is None:
+                raise HTTPException(
+                    status_code=404, detail=f"El registro con ID {datos.orden_id} no existe."
+                )
+
+            # Si el frontend no manda un dato, conservamos el que ya tenía
+            nueva_cantidad = datos.cantidad if datos.cantidad is not None else fila["cantidad"]
+            carne_pedida = datos.carne if datos.carne is not None else fila["tipo_carne"]
+
+            carne, precio = calcular_precio(
+                fila["precio_base"], fila["lleva_carne"], carne_pedida
+            )
+
+            con.execute(
+                "UPDATE detalles_ordenes SET cantidad = ?, tipo_carne = ?, precio = ? "
+                "WHERE orden_id = ?;",
+                (nueva_cantidad, carne, precio, datos.orden_id),
+            )
+
+        return {
+            "status": "success",
+            "message": f"El registro {datos.orden_id} fue actualizado con éxito.",
+        }
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
+
+
+@app.delete("/ordenes/eliminar-producto/{orden_id}")
+def eliminar_producto_por_id(orden_id: int):
+    try:
+        with conexion_bd() as con:
+            existe = con.execute(
+                "SELECT 1 FROM detalles_ordenes WHERE orden_id = ?;", (orden_id,)
+            ).fetchone()
+            if existe is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No se encontró ningún producto con el ID de orden {orden_id}.",
+                )
+            con.execute("DELETE FROM detalles_ordenes WHERE orden_id = ?;", (orden_id,))
+
+        return {"status": "success", "message": f"El producto {orden_id} fue eliminado."}
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
+
+
+@app.delete("/ordenes/{num_mesa}/cerrar")
+def cerrar_mesa(num_mesa: int):
+    try:
+        with conexion_bd() as con:
+            existe = con.execute(
+                "SELECT 1 FROM ordenes WHERE num_mesa = ?;", (num_mesa,)
+            ).fetchone()
+            if existe is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"La mesa {num_mesa} no está abierta. Primero debes abrirla.",
+                )
+            con.execute("DELETE FROM detalles_ordenes WHERE num_mesa = ?;", (num_mesa,))
+            con.execute("DELETE FROM ordenes WHERE num_mesa = ?;", (num_mesa,))
+
+        return {"status": "success", "message": f"Cuenta de la mesa {num_mesa} cerrada con éxito."}
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")

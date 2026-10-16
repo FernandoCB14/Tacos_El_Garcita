@@ -1,0 +1,15 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# Datos del negocio y secretos
+*.db
+.env
+
+# Sistema operativo
+Thumbs.db
