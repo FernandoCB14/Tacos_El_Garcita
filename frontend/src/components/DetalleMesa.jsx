@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatearDinero } from "../formato";
 import {
   obtenerTicket,
   obtenerMenu,
@@ -32,7 +33,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
 
-  const [categoria, setCategoria] = useState(null);   // null = "la primera que haya"
+  const [categoria, setCategoria] = useState(null); // null = "la primera que haya"
   const [productoId, setProductoId] = useState(null);
   const [carne, setCarne] = useState("suadero");
   const [cantidad, setCantidad] = useState(1);
@@ -62,7 +63,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
       setError(null);
     } catch (err) {
       console.error("Error al cargar ticket:", err);
-      setError("No se pudo conectar con el servidor");
+      setError(err.message || "No se pudo conectar con el servidor");
     } finally {
       setCargando(false);
     }
@@ -80,7 +81,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
         setMenu(await obtenerMenu());
       } catch (err) {
         console.error("Error al cargar el menú:", err);
-        setError("No se pudo cargar el menú");
+        setError(err.message || "No se pudo cargar el menú");
       }
     };
     cargarMenu();
@@ -184,7 +185,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
   };
 
   // -------------------------------------------------------------------
-  // PIEZAS REUTILIZABLES
+  // PIEZAS REUTILIZABLES (se escriben una vez y se usan en varias pantallas)
   // -------------------------------------------------------------------
   const formularioAgregar = (
     <form onSubmit={handleSubmit} style={{ marginTop: "20px" }}>
@@ -229,7 +230,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
               <option value="">-- Elige --</option>
               {productosDeCategoria.map((p) => (
                 <option key={p.producto_id} value={p.producto_id}>
-                  {p.nombre} - ${p.precio}
+                  {p.nombre} - {formatearDinero(p.precio_centavos)}
                 </option>
               ))}
             </select>
@@ -290,8 +291,10 @@ export default function DetalleMesa({ mesaSeleccionada }) {
   );
 
   // -------------------------------------------------------------------
-  // GUARDAS
+  // GUARDAS: cada una decide qué pantalla mostrar y corta con "return"
   // -------------------------------------------------------------------
+
+  // 1. Esperando respuesta de la API
   if (cargando) {
     return (
       <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
@@ -300,6 +303,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
     );
   }
 
+  // 2. Falla real (servidor apagado, error 500, etc.)
   if (error) {
     return (
       <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
@@ -308,6 +312,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
     );
   }
 
+  // 3. Mesa cerrada: lo único posible es abrirla
   if (!orden?.abierta) {
     return (
       <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
@@ -336,6 +341,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
     );
   }
 
+  // 4. Mesa abierta, sin pedidos todavía
   if (orden.productos.length === 0) {
     return (
       <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
@@ -349,7 +355,8 @@ export default function DetalleMesa({ mesaSeleccionada }) {
   }
 
   // -------------------------------------------------------------------
-  // VISTA PRINCIPAL: mesa abierta con pedidos
+  // VISTA PRINCIPAL: mesa abierta con pedidos (sin "if": si llegamos aquí,
+  // es porque ninguna guarda de arriba se cumplió)
   // -------------------------------------------------------------------
   return (
     <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
@@ -359,8 +366,8 @@ export default function DetalleMesa({ mesaSeleccionada }) {
         {orden.productos.map((producto) => (
           <li key={producto.orden_id} style={{ marginBottom: "8px" }}>
             {producto.cantidad} x {producto.nombre}
-            {producto.tipo_carne ? ` (${producto.tipo_carne})` : ""} - $
-            {producto.cantidad * producto.precio}
+            {producto.tipo_carne ? ` (${producto.tipo_carne})` : ""} -{" "}
+            {formatearDinero(producto.cantidad * producto.precio_centavos)}
 
             <button
               onClick={() => handleEliminarProducto(producto.orden_id)}
@@ -450,7 +457,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
         </div>
       )}
 
-      <h4>Total a pagar: ${orden.total}</h4>
+      <h4>Total a pagar: {formatearDinero(orden.total_centavos)}</h4>
 
       {formularioAgregar}
       {seccionCerrarMesa}

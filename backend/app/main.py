@@ -9,9 +9,10 @@ from pydantic import BaseModel, Field
 from app.database import inicializar_bd, cargar_menu, conexion_bd
 
 # -------------------------------------------------------------------
-# CONSTANTES DE NEGOCIO (si cambian, se cambian aquí y en ningún otro lado)
+# CONSTANTES DE NEGOCIO
+# Todo el dinero del backend son CENTAVOS ENTEROS: $18.00 = 1800.
 # -------------------------------------------------------------------
-RECARGO_SUADERO = 3
+RECARGO_SUADERO_CENTAVOS = 300
 CARNES_VALIDAS = {"suadero", "pastor", "bistec", "chorizo", "campechanos"}
 
 
@@ -24,7 +25,7 @@ async def lifespan(app: FastAPI):
     inicializar_bd()
     cargar_menu()
     yield
-    # Lo que fuera DESPUÉS del yield se ejecutaría al apagarlo (no necesitamos nada).
+    # Lo que fuera DESPUÉS del yield se ejecutaría al apagarlo.
 
 
 app = FastAPI(title="API Tacos el Garcita", lifespan=lifespan)
@@ -48,8 +49,8 @@ app.add_middleware(
 class ProductoNuevo(BaseModel):
     num_mesa: int
     producto_id: int
-    cantidad: int = Field(gt=0)     # debe ser mayor que 0, si no FastAPI responde 422
-    carne: Optional[str] = None     # opcional: bebidas y quesadillas no llevan carne
+    cantidad: int = Field(gt=0)
+    carne: Optional[str] = None
 
 
 class ActualizarOrden(BaseModel):
@@ -61,21 +62,21 @@ class ActualizarOrden(BaseModel):
 # -------------------------------------------------------------------
 # FUNCIÓN AUXILIAR: la regla de precios vive en UN solo lugar
 # -------------------------------------------------------------------
-def calcular_precio(precio_base: float, lleva_carne: int, carne: Optional[str]):
-    """Devuelve (carne_normalizada, precio_final).
+def calcular_precio(precio_base_centavos: int, lleva_carne: int, carne: Optional[str]):
+    """Devuelve (carne_normalizada, precio_final_en_centavos).
 
     Lanza 400 si el producto necesita carne y la que llegó no es válida.
     """
     if not lleva_carne:
-        return None, precio_base
+        return None, precio_base_centavos
 
     carne = (carne or "").lower()
     if carne not in CARNES_VALIDAS:
         raise HTTPException(status_code=400, detail="Elige una carne válida para este producto")
 
     if carne == "suadero":
-        precio_base += RECARGO_SUADERO
-    return carne, precio_base
+        precio_base_centavos += RECARGO_SUADERO_CENTAVOS
+    return carne, precio_base_centavos
 
 
 # -------------------------------------------------------------------
@@ -97,7 +98,7 @@ def estado_mesas():
 def obtener_menu():
     with conexion_bd() as con:
         filas = con.execute(
-            "SELECT producto_id, categoria, nombre, precio, lleva_carne "
+            "SELECT producto_id, categoria, nombre, precio_centavos, lleva_carne "
             "FROM productos ORDER BY producto_id;"
         ).fetchall()
         return [dict(fila) for fila in filas]
@@ -111,22 +112,22 @@ def ver_ticket(num_mesa: int):
                 "SELECT 1 FROM ordenes WHERE num_mesa = ?;", (num_mesa,)
             ).fetchone()
             if existe is None:
-                return {"num_mesa": num_mesa, "abierta": False, "productos": [], "total": 0}
+                return {"num_mesa": num_mesa, "abierta": False, "productos": [], "total_centavos": 0}
 
             filas = con.execute(
-                "SELECT orden_id, num_mesa, producto_id, nombre, tipo_carne, cantidad, precio "
+                "SELECT orden_id, num_mesa, producto_id, nombre, tipo_carne, cantidad, precio_centavos "
                 "FROM detalles_ordenes WHERE num_mesa = ? ORDER BY orden_id;",
                 (num_mesa,),
             ).fetchall()
 
             productos = [dict(fila) for fila in filas]
-            total = sum(p["precio"] * p["cantidad"] for p in productos)
+            total_centavos = sum(p["precio_centavos"] * p["cantidad"] for p in productos)
 
             return {
                 "num_mesa": num_mesa,
                 "abierta": True,
                 "productos": productos,
-                "total": total,
+                "total_centavos": total_centavos,
             }
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
@@ -157,23 +158,24 @@ def agregar_producto(datos: ProductoNuevo):
 
             # 2. El producto debe existir en el menú
             producto = con.execute(
-                "SELECT nombre, precio, lleva_carne FROM productos WHERE producto_id = ?;",
+                "SELECT nombre, precio_centavos, lleva_carne FROM productos WHERE producto_id = ?;",
                 (datos.producto_id,),
             ).fetchone()
             if producto is None:
                 raise HTTPException(status_code=404, detail="Ese producto no existe en el menú.")
 
             # 3. El backend decide la carne y el precio, nunca el frontend
-            carne, precio = calcular_precio(
-                producto["precio"], producto["lleva_carne"], datos.carne
+            carne, precio_centavos = calcular_precio(
+                producto["precio_centavos"], producto["lleva_carne"], datos.carne
             )
 
             # 4. Guardamos con "foto" del nombre y del precio al momento de la venta
             con.execute(
                 "INSERT INTO detalles_ordenes "
-                "(num_mesa, producto_id, cantidad, tipo_carne, nombre, precio) "
+                "(num_mesa, producto_id, cantidad, tipo_carne, nombre, precio_centavos) "
                 "VALUES (?, ?, ?, ?, ?, ?);",
-                (datos.num_mesa, datos.producto_id, datos.cantidad, carne, producto["nombre"], precio),
+                (datos.num_mesa, datos.producto_id, datos.cantidad, carne,
+                 producto["nombre"], precio_centavos),
             )
 
         return {"status": "success", "message": f"{datos.cantidad} x {producto['nombre']} agregado."}
@@ -188,7 +190,8 @@ def actualizar_producto(datos: ActualizarOrden):
             # JOIN: unimos el renglón de la orden con su producto del catálogo
             fila = con.execute(
                 """
-                SELECT d.cantidad, d.tipo_carne, p.precio AS precio_base, p.lleva_carne
+                SELECT d.cantidad, d.tipo_carne,
+                       p.precio_centavos AS precio_base_centavos, p.lleva_carne
                 FROM detalles_ordenes d
                 JOIN productos p ON p.producto_id = d.producto_id
                 WHERE d.orden_id = ?;
@@ -205,14 +208,14 @@ def actualizar_producto(datos: ActualizarOrden):
             nueva_cantidad = datos.cantidad if datos.cantidad is not None else fila["cantidad"]
             carne_pedida = datos.carne if datos.carne is not None else fila["tipo_carne"]
 
-            carne, precio = calcular_precio(
-                fila["precio_base"], fila["lleva_carne"], carne_pedida
+            carne, precio_centavos = calcular_precio(
+                fila["precio_base_centavos"], fila["lleva_carne"], carne_pedida
             )
 
             con.execute(
-                "UPDATE detalles_ordenes SET cantidad = ?, tipo_carne = ?, precio = ? "
+                "UPDATE detalles_ordenes SET cantidad = ?, tipo_carne = ?, precio_centavos = ? "
                 "WHERE orden_id = ?;",
-                (nueva_cantidad, carne, precio, datos.orden_id),
+                (nueva_cantidad, carne, precio_centavos, datos.orden_id),
             )
 
         return {
