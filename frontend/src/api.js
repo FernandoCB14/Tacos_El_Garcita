@@ -37,6 +37,14 @@ export const cerrarMesa = async (num_mesa) => {
   return pedir(`/ordenes/${num_mesa}/cerrar`, { method: "DELETE" }, "Error al cerrar la mesa");
 };
 
+export const cobrarMesa = (num_mesa) =>{
+  if (!num_mesa) {
+    throw new Error("Se requiere un número de mesa válido para poder cobrar.");
+  }
+  return pedir(`/ordenes/${num_mesa}/cobrar`, { method: "POST" }, "Error al cobrar la mesa");
+};
+  
+
 // ---- Menú y cuenta ----
 export const obtenerMenu = () =>
   pedir("/menu", {}, "No se pudo cargar el menú");

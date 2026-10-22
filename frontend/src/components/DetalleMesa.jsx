@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { formatearDinero } from "../formato";
+import TicketModal from "./TicketModal";
 import {
   obtenerTicket,
   obtenerMenu,
@@ -7,6 +8,7 @@ import {
   eliminarProducto,
   actualizarProducto,
   cerrarMesa,
+  cobrarMesa,
   abrirMesa,
 } from "../api";
 
@@ -39,6 +41,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
   const [cantidad, setCantidad] = useState(1);
 
   const [productoAeditar, setProductoAeditar] = useState(null);
+  const [ventaCobrada, setVentaCobrada] = useState(null); // la venta que se muestra el ticket
 
   // ---- Estado derivado: se CALCULA en cada render, no se guarda ----
   // [...new Set(...)] quita las categorías repetidas y las vuelve a convertir en lista.
@@ -168,6 +171,25 @@ export default function DetalleMesa({ mesaSeleccionada }) {
     }
   };
 
+    const handleCobrar = async () => {
+    const confirmado = window.confirm(
+      `¿Cobrar ${formatearDinero(orden.total_centavos)} de la MESA ${orden.num_mesa}?`
+    );
+    if (!confirmado) return;
+
+    try {
+      setCargando(true);
+      const venta = await cobrarMesa(orden.num_mesa);
+      setVentaCobrada(venta);   // ← esto hace aparecer el ticket
+      await cargarTicket();     // la mesa ya quedó cerrada en la base
+    } catch (err) {
+      console.error("Error al cobrar:", err);
+      alert(`No se pudo cobrar: ${err.message}`);
+    } finally {
+      setCargando(false);
+    }
+  };
+
   const handleGuardarEdicion = async () => {
     if (!productoAeditar) return;
     try {
@@ -290,6 +312,27 @@ export default function DetalleMesa({ mesaSeleccionada }) {
     </div>
   );
 
+  const seccionCobrar = (
+    <div style={{ marginTop: "30px", paddingTop: "15px", borderTop: "1px solid #ddd" }}>
+      <button
+        type="button"
+        onClick={handleCobrar}
+        style={{
+          padding: "12px 20px",
+          backgroundColor: "#28a745",
+          color: "white",
+          border: "none",
+          borderRadius: "6px",
+          fontSize: "16px",
+          fontWeight: "bold",
+          cursor: "pointer",
+        }}
+      >
+        💳 Cobrar {formatearDinero(orden?.total_centavos ?? 0)} e imprimir ticket
+      </button>
+    </div>
+  );
+
   // -------------------------------------------------------------------
   // GUARDAS: cada una decide qué pantalla mostrar y corta con "return"
   // -------------------------------------------------------------------
@@ -337,6 +380,9 @@ export default function DetalleMesa({ mesaSeleccionada }) {
         >
           🟢 Abrir Mesa
         </button>
+        {ventaCobrada && (
+          <TicketModal venta={ventaCobrada} onCerrar={() => setVentaCobrada(null)} />
+        )}
       </div>
     );
   }
@@ -460,7 +506,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
       <h4>Total a pagar: {formatearDinero(orden.total_centavos)}</h4>
 
       {formularioAgregar}
-      {seccionCerrarMesa}
+      {seccionCobrar}
     </div>
   );
 }
