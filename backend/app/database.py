@@ -70,8 +70,7 @@ def inicializar_bd():
                 num_mesa        INTEGER,
                 abierta_en      TEXT,
                 cerrada_en      TEXT DEFAULT (datetime('now','localtime')),
-                total_centavos  INTEGER NOT NULL,
-                metodo_pago     TEXT NOT NULL CHECK (metodo_pago IN ('efectivo', 'tarjeta'))
+                total_centavos  INTEGER NOT NULL
             );
         """)
         con.execute("""

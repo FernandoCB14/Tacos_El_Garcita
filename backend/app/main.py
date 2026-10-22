@@ -78,6 +78,26 @@ def calcular_precio(precio_base_centavos: int, lleva_carne: int, carne: Optional
         precio_base_centavos += RECARGO_SUADERO_CENTAVOS
     return carne, precio_base_centavos
 
+def leer_venta(con, venta_id: int):
+    """Lee una venta ya guardada, con sus renglones. Devuelve None si no existe."""
+    venta = con.execute(
+        "SELECT venta_id, num_mesa, abierta_en, cerrada_en, total_centavos "
+        "FROM ventas WHERE venta_id = ?;",
+        (venta_id,),
+    ).fetchone()
+    if venta is None:
+        return None
+
+    renglones = con.execute(
+        "SELECT detalle_id, nombre, tipo_carne, cantidad, precio_centavos "
+        "FROM detalles_ventas WHERE venta_id = ? ORDER BY detalle_id;",
+        (venta_id,),
+    ).fetchall()
+
+    datos = dict(venta)
+    datos["productos"] = [dict(r) for r in renglones]
+    return datos
+
 
 # -------------------------------------------------------------------
 # RUTAS
@@ -257,9 +277,74 @@ def cerrar_mesa(num_mesa: int):
                     status_code=404,
                     detail=f"La mesa {num_mesa} no está abierta. Primero debes abrirla.",
                 )
+
+            con_consumo = con.execute(
+                "SELECT 1 FROM detalles_ordenes WHERE num_mesa = ? LIMIT 1;", (num_mesa,)
+            ).fetchone()
+            if con_consumo is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="La mesa tiene consumo: cóbrala en lugar de cerrarla.",
+                )
+
+            con.execute("DELETE FROM ordenes WHERE num_mesa = ?;", (num_mesa,))
+
+        return {"status": "success", "message": f"Mesa {num_mesa} cerrada."}
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
+
+
+@app.post("/ordenes/{num_mesa}/cobrar")
+def cobrar_mesa(num_mesa: int):
+    try:
+        with conexion_bd() as con:
+            orden = con.execute(
+                "SELECT abierta_en FROM ordenes WHERE num_mesa = ?;", (num_mesa,)
+            ).fetchone()
+            if orden is None:
+                raise HTTPException(status_code=404, detail=f"La mesa {num_mesa} no está abierta.")
+
+            total_centavos = con.execute(
+                "SELECT SUM(precio_centavos * cantidad) AS total "
+                "FROM detalles_ordenes WHERE num_mesa = ?;",
+                (num_mesa,),
+            ).fetchone()["total"]
+
+            if total_centavos is None:
+                raise HTTPException(
+                    status_code=400, detail="La mesa no tiene productos, no hay nada que cobrar."
+                )
+
+            cursor = con.execute(
+                "INSERT INTO ventas (num_mesa, abierta_en, total_centavos) VALUES (?, ?, ?);",
+                (num_mesa, orden["abierta_en"], total_centavos),
+            )
+            venta_id = cursor.lastrowid
+
+            con.execute(
+                "INSERT INTO detalles_ventas "
+                "(venta_id, producto_id, nombre, tipo_carne, cantidad, precio_centavos) "
+                "SELECT ?, producto_id, nombre, tipo_carne, cantidad, precio_centavos "
+                "FROM detalles_ordenes WHERE num_mesa = ?;",
+                (venta_id, num_mesa),
+            )
+
             con.execute("DELETE FROM detalles_ordenes WHERE num_mesa = ?;", (num_mesa,))
             con.execute("DELETE FROM ordenes WHERE num_mesa = ?;", (num_mesa,))
 
-        return {"status": "success", "message": f"Cuenta de la mesa {num_mesa} cerrada con éxito."}
+            venta = leer_venta(con, venta_id)
+
+        return venta
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
+
+@app.get("/ventas/{venta_id}")
+def ver_venta(venta_id: int):
+    try:
+        with conexion_bd() as con:
+            venta = leer_venta(con, venta_id)
+        if venta is None:
+            raise HTTPException(status_code=404, detail=f"La venta {venta_id} no existe.")
+        return venta
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
