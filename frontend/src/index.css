@@ -1,0 +1,50 @@
+/* ===================================================================
+   SISTEMA DE DISEÑO - Tacos El Garcita
+   Los colores salen del menú impreso (naranja y verde de la marca).
+   Toda la app usa estas variables: si cambias un color aquí, cambia en todos lados.
+   =================================================================== */
+:root {
+  /* Marca */
+  --naranja: #FD8200;
+  --naranja-oscuro: #B85C00;  /* con texto blanco: contraste 4.6:1 */
+  --naranja-claro: #FFE3C2;
+  --verde: #009745;
+  --verde-oscuro: #00793A;    /* con texto blanco: contraste 5.5:1 */
+  --verde-claro: #DDF3E6;
+
+  /* Neutros */
+  --fondo: #FFF7EC;
+  --superficie: #FFFFFF;
+  --borde: #E8DCCB;
+  --texto: #1F1A14;
+  --texto-suave: #6B6258;
+
+  /* Estados */
+  --peligro: #C62828;
+  --peligro-claro: #FBE4E4;
+  --aviso: #FFC107;
+
+  /* Medidas */
+  --radio: 12px;
+  --radio-chico: 8px;
+  --sombra: 0 1px 3px rgba(31, 26, 20, 0.12), 0 4px 12px rgba(31, 26, 20, 0.06);
+  --alto-toque: 48px;         /* tamaño mínimo cómodo para un dedo */
+
+  /* Tipografía */
+  --fuente: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--fuente);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}

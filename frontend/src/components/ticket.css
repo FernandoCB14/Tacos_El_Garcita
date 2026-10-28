@@ -1,13 +1,8 @@
-/* ===================================================================
-   TICKET
-   Para cambiar el ancho del rollo (58mm ↔ 80mm) edita --ancho-ticket.
-   El tamaño de papel real se elige en el controlador de la impresora.
-   =================================================================== */
+
 :root {
   --ancho-ticket: 58mm;
 }
 
-/* ---- El ticket en sí (se ve igual en pantalla y en papel) ---- */
 .ticket {
   width: var(--ancho-ticket);
   box-sizing: border-box;
