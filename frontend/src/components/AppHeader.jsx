@@ -5,7 +5,11 @@ export default function AppHeader({ vista, onNavegar }) {
 
       <div className="app-header-marca">
         <div className="app-header-icono">
-          🌮
+          <img 
+          src="/logo.png" 
+          alt="Logotipo de Tacos el Garcita"
+          className="app-logo" 
+          />
         </div>
 
         <div>

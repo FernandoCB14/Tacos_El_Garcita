@@ -48,3 +48,20 @@ input,
 select {
   font-family: inherit;
 }
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}

@@ -1,75 +1,118 @@
-
 import React from "react";
+import CuentaRapida from "./CuentaRapida";
 
 export default function Croquis({
   mesaSeleccionada,
   setMesaSeleccionada,
   estadosMesas = {},
+  onVerCuenta,
+  mesaParaCobrar,
+  setMesaParaCobrar,
 }) {
   const mesas = [
-    { num: 1, posClass: "mesa-pos-1" },
-    { num: 2, posClass: "mesa-pos-2" },
-    { num: 5, posClass: "mesa-pos-3" },
-    { num: 4, posClass: "mesa-pos-4" },
-    { num: 6, posClass: "mesa-pos-5" },
+    { num: 1 },
+    { num: 2 },
+    { num: 4 },
+    { num: 5 },
+    { num: 6 },
   ];
 
-  const mesasOcupadas = mesas.filter(
-    (mesa) => estadosMesas[mesa.num]
-  ).length;
-
+  const mesasOcupadas = mesas.filter((mesa) => estadosMesas[mesa.num]).length;
   const mesasLibres = mesas.length - mesasOcupadas;
 
   return (
-    <div className="croquis-container">
-
-      <div className="croquis-header">
-        <div>
-          <h2>Mesas del restaurante</h2>
-          <p>Selecciona una mesa para continuar</p>
+    <section className="mesas-layout">
+      <div className="mesas-panel">
+        <div className="mesas-panel-header">
+          <div>
+            <h2>Mesas</h2>
+            <p>Selecciona una mesa para continuar</p>
+          </div>
         </div>
 
-        <div className="resumen-mesas">
-          <span>{mesasLibres} libres</span>
-          <span>{mesasOcupadas} ocupadas</span>
+        <div className="mesa-grid">
+          {mesas.map(({ num }) => {
+            const estaOcupada = Boolean(estadosMesas[num]);
+            const estaSeleccionada = num === mesaSeleccionada;
+
+            return (
+              
+                <div
+                key={num}
+                className={`mesa-card ${
+                    estaOcupada ? "ocupada" : "libre"
+                } ${estaSeleccionada ? "seleccionada" : ""}`}
+                >
+                <div className="mesa-card-superior">
+                    <span className="mesa-card-titulo">
+                    Mesa {num}
+                    </span>
+
+                    <span className="mesa-card-icono" aria-hidden="true">
+                    {estaOcupada ? "📋" : "✓"}
+                    </span>
+                </div>
+
+                <div className="mesa-card-informacion">
+                    <span className="mesa-card-estado">
+                    {estaOcupada ? "Ocupada" : "Libre"}
+                    </span>
+
+                    <span className="mesa-card-descripcion">
+                    {estaOcupada ? "Comanda abierta" : "Disponible"}
+                    </span>
+                </div>
+
+                <div className="mesa-card-botones">
+                    <button
+                    type="button"
+                    className="mesa-boton-principal"
+                    onClick={() => setMesaSeleccionada(num)}
+                    >
+                    {estaOcupada ? "Ver comanda" : "Abrir mesa"}
+                    </button>
+
+                    {estaOcupada && (
+                    <button
+                        type="button"
+                        className="mesa-boton-cobrar"
+                        onClick={() => onVerCuenta(num)}
+                    >
+                        Cobrar
+                    </button>
+                    )}
+                </div>
+                </div>
+
+            );
+          })}
         </div>
       </div>
 
-      <div className="dado-grid">
-        {mesas.map(({ num, posClass }) => {
-          const estaOcupada = Boolean(estadosMesas[num]);
+      <aside className="resumen-panel">
+        {mesaParaCobrar !== null ? (
+            <CuentaRapida
+            numMesa={mesaParaCobrar}
+            onCerrar={() => setMesaParaCobrar(null)}
+            />
+        ) : (
+            <>
+            <h3>Resumen</h3>
 
-          const estaSeleccionada =
-            num === mesaSeleccionada;
+            <div className="resumen-stats">
+                <div className="stat-card">
+                <span className="stat-numero">{mesasLibres}</span>
+                <span className="stat-label">Libres</span>
+                </div>
 
-          return (
-            <button
-              key={num}
-              type="button"
-              onClick={() => setMesaSeleccionada(num)}
-              aria-label={`Mesa ${num}, ${
-                estaOcupada ? "ocupada" : "libre"
-              }`}
-              className={`btn-mesa ${posClass} ${
-                estaOcupada ? "ocupada" : "libre"
-              } ${estaSeleccionada ? "seleccionada" : ""}`}
-            >
-              <span className="mesa-icono" aria-hidden="true">
-                🪑
-              </span>
-
-              <span className="mesa-numero">
-                Mesa {num}
-              </span>
-
-              <span className="mesa-estado">
-                {estaOcupada ? "Ocupada" : "Libre"}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-    </div>
+                <div className="stat-card">
+                <span className="stat-numero">{mesasOcupadas}</span>
+                <span className="stat-label">Ocupadas</span>
+                </div>
+            </div>
+            </>
+        )}
+    </aside>
+    </section>
   );
 }

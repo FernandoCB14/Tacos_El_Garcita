@@ -7,9 +7,11 @@ import { obtenerEstadoMesas } from "./api";
 import AppHeader from "./components/AppHeader";
 
 function App() {
+
   // Estado para la mesa seleccionada actualmente
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
   const [vista, setVista] = useState("croquis");
+  const [mesaParaCobrar, setMesaParaCobrar] = useState(null);
 
   // Estados ficticios/simulados para probar que las rojas y verdes cambien de color
   const [estadosMesas, setEstadoMesas] = useState({
@@ -43,36 +45,36 @@ function App() {
 
   const navegarA = (nuevaVista) => {
   setMesaSeleccionada(null);
+  setMesaParaCobrar(null);
   setVista(nuevaVista);
 };
 
   return (
-    <div style={{ padding: "20px", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
-      {vista === "croquis" && (
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <AppHeader
-            vista={vista}
-            onNavegar={navegarA}
-          />
-        </div>
-      )}
+    <div className="app-container">
+      <AppHeader
+        vista={vista}
+        onNavegar={navegarA}
+      />
 
       {/* Evaluamos qué pantalla mostrar según la variable 'vista' */}
       {vista === "croquis" ? (
         /* PANTALLA 1: CROQUIS */
-        <Croquis 
+        <Croquis
           mesaSeleccionada={mesaSeleccionada}
           setMesaSeleccionada={handleSeleccionarMesa}
           estadosMesas={estadosMesas}
+          onVerCuenta={setMesaParaCobrar}
+          mesaParaCobrar={mesaParaCobrar}
+          setMesaParaCobrar={setMesaParaCobrar}
         />
       ) : (
         /* PANTALLA 2: DETALLE DE LA COMANDA */
         <div>
-          <button 
+          <button
             onClick={handVolverAlcroquis}
-            style={{ 
-              marginBottom: "20px", 
-              padding: "10px 18px", 
+            style={{
+              marginBottom: "20px",
+              padding: "10px 18px",
               fontSize: "15px",
               cursor: "pointer",
               backgroundColor: "#6c757d",
