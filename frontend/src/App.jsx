@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Croquis from "./components/Croquis";
 import DetalleMesa from "./components/DetalleMesa";
+import VentasDelDia from "./components/VentasDelDia";
 import "./App.css";
 import { obtenerEstadoMesas } from "./api";
 
@@ -42,6 +43,25 @@ function App() {
   return (
     <div style={{ padding: "20px", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
       <h1 style={{ textAlign: "center" }}>🌮 Tacos el Garcita - Panel Principal</h1>
+      {vista === "croquis" && (
+        <div style={{ textAlign: "center", marginBottom: "20px" }}>
+          <button
+            onClick={() => setVista("ventas")}
+            style={{
+              padding: "10px 18px",
+              fontSize: "15px",
+              cursor: "pointer",
+              backgroundColor: "#007bff",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              fontWeight: "bold",
+            }}
+          >
+            📊 Ventas del día
+          </button>
+        </div>
+      )}
 
       {/* Evaluamos qué pantalla mostrar según la variable 'vista' */}
       {vista === "croquis" ? (
@@ -71,7 +91,8 @@ function App() {
             ⬅️ Regresar al Croquis
           </button>
 
-          <DetalleMesa mesaSeleccionada={mesaSeleccionada} />
+          {vista === "detalle" && <DetalleMesa mesaSeleccionada={mesaSeleccionada} />}
+          {vista === "ventas" && <VentasDelDia />}
         </div>
       )}
     </div>

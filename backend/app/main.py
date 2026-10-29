@@ -1,6 +1,7 @@
 import sqlite3
 from contextlib import asynccontextmanager
 from typing import Optional
+from datetime import date
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -335,6 +336,29 @@ def cobrar_mesa(num_mesa: int):
             venta = leer_venta(con, venta_id)
 
         return venta
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
+
+@app.get("/ventas")
+def listar_ventas(fecha: Optional[date] = None):
+    if fecha is None:
+        fecha = date.today()
+
+    try:
+        with conexion_bd() as con:
+            filas = con.execute(
+                "SELECT venta_id, num_mesa, cerrada_en, total_centavos "    
+                "FROM ventas WHERE date(cerrada_en) = ? ORDER BY venta_id DESC;",
+                (fecha.isoformat(),),
+            ).fetchall()
+
+        ventas = [dict(fila) for fila in filas]
+        return {
+            "fecha": fecha.isoformat(),
+            "cantidad": len(ventas),
+            "total_centavos": sum(v["total_centavos"] for v in ventas),
+            "ventas": ventas,
+        }
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
 

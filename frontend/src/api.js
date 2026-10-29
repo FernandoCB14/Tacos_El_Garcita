@@ -52,6 +52,12 @@ export const obtenerMenu = () =>
 export const obtenerTicket = (num_mesa) =>
   pedir(`/ordenes/${num_mesa}/ticket`, {}, "Error al obtener la orden");
 
+export const obtenerVentas = (fecha) =>
+  pedir(fecha ? `/ventas?fecha=${fecha}` : "/ventas", {}, "No se pudieron cargar las ventas");
+
+export const obtenerVenta = (venta_id) =>
+  pedir(`/ventas/${venta_id}`, {}, "No se encontró la venta");
+
 // ---- Productos de la cuenta ----
 export const agregarProducto = ({ num_mesa, producto_id, cantidad, carne }) =>
   pedir(

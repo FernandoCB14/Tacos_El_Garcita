@@ -18,7 +18,6 @@ const formatearFecha = (texto) => {
   return `${dia}/${mes}/${anio} ${hora.slice(0, 5)}`;
 };
 
-// El ticket en sí. Recibe una VENTA ya guardada (no la orden abierta).
 export function Ticket({ venta }) {
   const folio = String(venta.venta_id).padStart(5, "0");
 
@@ -47,6 +46,7 @@ export function Ticket({ venta }) {
       </div>
       <hr />
       <p className="centrado">{NEGOCIO.despedida}</p>
+      {venta.reimpresion && <p className="centrado"><strong>*** REIMPRESIÓN ***</strong></p>}
     </div>
   );
 }
@@ -66,8 +66,6 @@ export default function TicketModal({ venta, onCerrar }) {
         </div>
       </div>
 
-      {/* Lo que se imprime: una copia colgada directamente de <body>, FUERA de #root.
-          Así el CSS de impresión puede ocultar toda la app (#root) sin esconder el ticket. */}
       {createPortal(
         <div className="ticket-impresion">
           <Ticket venta={venta} />
