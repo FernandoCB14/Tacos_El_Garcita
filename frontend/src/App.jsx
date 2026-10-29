@@ -4,6 +4,7 @@ import DetalleMesa from "./components/DetalleMesa";
 import VentasDelDia from "./components/VentasDelDia";
 import "./App.css";
 import { obtenerEstadoMesas } from "./api";
+import AppHeader from "./components/AppHeader";
 
 function App() {
   // Estado para la mesa seleccionada actualmente
@@ -40,26 +41,19 @@ function App() {
     setVista("croquis")
   }
 
+  const navegarA = (nuevaVista) => {
+  setMesaSeleccionada(null);
+  setVista(nuevaVista);
+};
+
   return (
     <div style={{ padding: "20px", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
-      <h1 style={{ textAlign: "center" }}>🌮 Tacos el Garcita - Panel Principal</h1>
       {vista === "croquis" && (
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <button
-            onClick={() => setVista("ventas")}
-            style={{
-              padding: "10px 18px",
-              fontSize: "15px",
-              cursor: "pointer",
-              backgroundColor: "#007bff",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontWeight: "bold",
-            }}
-          >
-            📊 Ventas del día
-          </button>
+          <AppHeader
+            vista={vista}
+            onNavegar={navegarA}
+          />
         </div>
       )}
 
