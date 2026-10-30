@@ -487,3 +487,129 @@
     flex-direction: column;
   }
 }
+
+
+/*Selección de pago */
+
+.cuenta-metodo-pago {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cuenta-metodo-pago h4 {
+  margin: 0;
+  font-size: 18px;
+  color: #24211e;
+}
+
+.cuenta-metodos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cuenta-metodos button {
+  min-height: 64px;
+  padding: 10px;
+  border: 2px solid #d7c6b3;
+  border-radius: 12px;
+  background: white;
+  color: #24211e;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.cuenta-metodos button.metodo-activo {
+  border-color: #009745;
+  background: #e2f4e9;
+}
+
+.cuenta-metodos button:focus-visible {
+  outline: 3px solid #ff8200;
+  outline-offset: 3px;
+}
+
+.cuenta-aviso-tarjeta,
+.cuenta-metodo-seleccionado {
+  margin: 0;
+  font-size: 13px;
+  color: #6b6258;
+}
+
+
+
+/* Cobro rápido desde el croquis */
+
+.cuenta-boton-confirmar {
+  width: 100%;
+  min-height: 60px;
+  margin-top: 18px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 12px;
+  background-color: #009745;
+  color: white;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.cuenta-boton-confirmar:hover:not(:disabled) {
+  background-color: #007936;
+}
+
+.cuenta-boton-confirmar:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+
+
+/* Resumen financiero */
+
+.ventas-resumen-financiero {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.ventas-indicador {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  background: #f5efe5;
+  border: 1px solid #e6d9c7;
+  border-radius: 14px;
+}
+
+.ventas-indicador span {
+  color: #625a50;
+  font-size: 14px;
+}
+
+.ventas-indicador strong {
+  color: #24211e;
+  font-size: 23px;
+}
+
+.ventas-indicador-neto {
+  grid-column: 1 / -1;
+  background: #e2f4e9;
+  border-color: #b5dfc5;
+}
+
+.ventas-indicador-neto strong {
+  color: #08783d;
+}
+
+@media (max-width: 650px) {
+  .ventas-resumen-financiero {
+    grid-template-columns: 1fr;
+  }
+}

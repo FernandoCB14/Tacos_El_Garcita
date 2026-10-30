@@ -25,9 +25,37 @@ export function ListaVentas({ datos, onVerTicket }) {
   return (
     <>
       <p style={{ fontSize: "18px" }}>
-        <strong>{datos.cantidad}</strong> {datos.cantidad === 1 ? "venta" : "ventas"} ·{" "}
-        Total: <strong>{formatearDinero(datos.total_centavos)}</strong>
+        <strong>{datos.cantidad}</strong>{" "}
+        {datos.cantidad === 1 ? "venta" : "ventas"} · Total:{" "}
+        <strong>{formatearDinero(datos.total_centavos)}</strong>
       </p>
+
+      <div className="ventas-resumen-financiero">
+        <div className="ventas-indicador">
+          <span>Ventas brutas</span>
+          <strong>{formatearDinero(datos.total_centavos)}</strong>
+        </div>
+
+        <div className="ventas-indicador">
+          <span>Efectivo</span>
+          <strong>{formatearDinero(datos.total_efectivo_centavos)}</strong>
+        </div>
+
+        <div className="ventas-indicador">
+          <span>Mercado Pago</span>
+          <strong>{formatearDinero(datos.total_tarjeta_centavos)}</strong>
+        </div>
+
+        <div className="ventas-indicador">
+          <span>Comisiones estimadas</span>
+          <strong>{formatearDinero(datos.total_comisiones_centavos)}</strong>
+        </div>
+
+        <div className="ventas-indicador ventas-indicador-neto">
+          <span>Ingreso neto estimado</span>
+          <strong>{formatearDinero(datos.total_neto_centavos)}</strong>
+        </div>
+      </div>
 
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
@@ -35,21 +63,44 @@ export function ListaVentas({ datos, onVerTicket }) {
             <th style={{ padding: "6px" }}>Folio</th>
             <th style={{ padding: "6px" }}>Hora</th>
             <th style={{ padding: "6px" }}>Mesa</th>
+            <th style={{ padding: "6px" }}>Método de pago</th>
             <th style={{ padding: "6px", textAlign: "right" }}>Total</th>
+            <th style={{ padding: "6px", textAlign: "right" }}>Comisión</th>
             <th style={{ padding: "6px" }}></th>
           </tr>
         </thead>
         <tbody>
           {datos.ventas.map((v) => (
             <tr key={v.venta_id} style={{ borderBottom: "1px solid #eee" }}>
-              <td style={{ padding: "6px" }}>{String(v.venta_id).padStart(5, "0")}</td>
+              <td style={{ padding: "6px" }}>
+                {String(v.venta_id).padStart(5, "0")}
+              </td>
               <td style={{ padding: "6px" }}>{soloHora(v.cerrada_en)}</td>
               <td style={{ padding: "6px" }}>{v.num_mesa}</td>
+              <td style={{ padding: "6px" }}>
+                {v.metodo_pago === "tarjeta"
+                  ? "💳 Mercado Pago"
+                  : v.metodo_pago === "efectivo"
+                    ? "💵 Efectivo"
+                    : "Sin clasificar"}
+              </td>
+
+              {/* TOTAL DE LA VENTA */}
               <td style={{ padding: "6px", textAlign: "right" }}>
                 {formatearDinero(v.total_centavos)}
               </td>
+
+              {/* COMISIÓN DE MERCADO PAGO */}
+              <td style={{ padding: "6px", textAlign: "right" }}>
+                {v.comision_centavos == null
+                  ? "Pendiente"
+                  : formatearDinero(v.comision_centavos)}
+              </td>
+
+              {/* BOTÓN DEL TICKET */}
               <td style={{ padding: "6px", textAlign: "right" }}>
                 <button
+                  type="button"
                   onClick={() => onVerTicket(v.venta_id)}
                   style={{ padding: "4px 10px", cursor: "pointer" }}
                 >
@@ -133,7 +184,10 @@ export default function VentasDelDia() {
       </div>
 
       {ventaSeleccionada && (
-        <TicketModal venta={ventaSeleccionada} onCerrar={() => setVentaSeleccionada(null)} />
+        <TicketModal
+          venta={ventaSeleccionada}
+          onCerrar={() => setVentaSeleccionada(null)}
+        />
       )}
     </div>
   );

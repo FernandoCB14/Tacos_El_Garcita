@@ -6,8 +6,10 @@ from datetime import date
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from typing import Literal
 
 from app.database import inicializar_bd, cargar_menu, conexion_bd
+from .config_pagos import calcular_comision
 
 # -------------------------------------------------------------------
 # CONSTANTES DE NEGOCIO
@@ -60,6 +62,10 @@ class ActualizarOrden(BaseModel):
     carne: Optional[str] = None
 
 
+class DatosCobro(BaseModel):
+    metodo_pago: Literal["efectivo", "tarjeta"]
+
+
 # -------------------------------------------------------------------
 # FUNCIÓN AUXILIAR: la regla de precios vive en UN solo lugar
 # -------------------------------------------------------------------
@@ -82,10 +88,23 @@ def calcular_precio(precio_base_centavos: int, lleva_carne: int, carne: Optional
 def leer_venta(con, venta_id: int):
     """Lee una venta ya guardada, con sus renglones. Devuelve None si no existe."""
     venta = con.execute(
-        "SELECT venta_id, num_mesa, abierta_en, cerrada_en, total_centavos "
-        "FROM ventas WHERE venta_id = ?;",
+        """
+        SELECT
+        venta_id,
+        num_mesa,
+        abierta_en,
+        cerrada_en,
+        total_centavos,
+        metodo_pago,
+        comision_porcentaje,
+        iva_comision_porcentaje,
+        comision_centavos,
+        neto_centavos
+        FROM ventas
+        WHERE venta_id = ?;
+        """,
         (venta_id,),
-    ).fetchone()
+        ).fetchone()
     if venta is None:
         return None
 
@@ -296,9 +315,10 @@ def cerrar_mesa(num_mesa: int):
 
 
 @app.post("/ordenes/{num_mesa}/cobrar")
-def cobrar_mesa(num_mesa: int):
+def cobrar_mesa(num_mesa: int, datos: DatosCobro):
     try:
         with conexion_bd() as con:
+            con.execute("BEGIN IMMEDIATE;")
             orden = con.execute(
                 "SELECT abierta_en FROM ordenes WHERE num_mesa = ?;", (num_mesa,)
             ).fetchone()
@@ -316,11 +336,46 @@ def cobrar_mesa(num_mesa: int):
                     status_code=400, detail="La mesa no tiene productos, no hay nada que cobrar."
                 )
 
-            cursor = con.execute(
-                "INSERT INTO ventas (num_mesa, abierta_en, total_centavos) VALUES (?, ?, ?);",
-                (num_mesa, orden["abierta_en"], total_centavos),
+            cursor = con.execute
+            (
+                comision_porcentaje,
+                iva_comision_porcentaje,
+                comision_centavos,
+                neto_centavos,
+            ) = calcular_comision(
+                total_centavos,
+                datos.metodo_pago,
+                con=con,
             )
+
+            cursor = con.execute(
+                """
+                INSERT INTO ventas (
+                    num_mesa,
+                    abierta_en,
+                    total_centavos,
+                    metodo_pago,
+                    comision_porcentaje,
+                    iva_comision_porcentaje,
+                    comision_centavos,
+                    neto_centavos
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    num_mesa,
+                    orden["abierta_en"],
+                    total_centavos,
+                    datos.metodo_pago,
+                    str(comision_porcentaje),
+                    str(iva_comision_porcentaje),
+                    comision_centavos,
+                    neto_centavos,
+                ),
+            )
+
             venta_id = cursor.lastrowid
+
 
             con.execute(
                 "INSERT INTO detalles_ventas "
@@ -347,16 +402,54 @@ def listar_ventas(fecha: Optional[date] = None):
     try:
         with conexion_bd() as con:
             filas = con.execute(
-                "SELECT venta_id, num_mesa, cerrada_en, total_centavos "    
-                "FROM ventas WHERE date(cerrada_en) = ? ORDER BY venta_id DESC;",
+                """
+                SELECT
+                    venta_id,
+                    num_mesa,
+                    cerrada_en,
+                    total_centavos,
+                    metodo_pago,
+                    comision_centavos,
+                    neto_centavos
+                FROM ventas
+                WHERE date(cerrada_en) = ?
+                ORDER BY venta_id DESC;
+                """,
                 (fecha.isoformat(),),
             ).fetchall()
 
         ventas = [dict(fila) for fila in filas]
+        total_efectivo = sum(
+            v["total_centavos"]
+            for v in ventas
+            if v["metodo_pago"] == "efectivo"
+        )
+
+        total_tarjeta = sum(
+            v["total_centavos"]
+            for v in ventas
+            if v["metodo_pago"] == "tarjeta"
+        )
+
+        total_comisiones = sum(
+            v["comision_centavos"] or 0
+            for v in ventas
+        )
+
+        total_neto = sum(
+            v["neto_centavos"]
+            if v["neto_centavos"] is not None
+            else v["total_centavos"]
+            for v in ventas
+        )
         return {
             "fecha": fecha.isoformat(),
             "cantidad": len(ventas),
             "total_centavos": sum(v["total_centavos"] for v in ventas),
+            "total_efectivo_centavos": total_efectivo,
+            "total_tarjeta_centavos": total_tarjeta,
+            "total_comisiones_centavos": total_comisiones,
+            "total_neto_centavos": total_neto,
             "ventas": ventas,
         }
     except sqlite3.Error as e:

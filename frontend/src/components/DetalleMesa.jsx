@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatearDinero } from "../formato";
 import TicketModal from "./TicketModal";
 import {
@@ -42,6 +42,8 @@ export default function DetalleMesa({ mesaSeleccionada }) {
 
   const [productoAeditar, setProductoAeditar] = useState(null);
   const [ventaCobrada, setVentaCobrada] = useState(null); // la venta que se muestra el ticket
+  const cobroEnProceso = useRef(false);
+  const [metodoPago, setMetodoPago] = useState("efectivo");
 
   // ---- Estado derivado: se CALCULA en cada render, no se guarda ----
   // [...new Set(...)] quita las categorías repetidas y las vuelve a convertir en lista.
@@ -171,24 +173,52 @@ export default function DetalleMesa({ mesaSeleccionada }) {
     }
   };
 
-    const handleCobrar = async () => {
+
+
+const handleCobrar = async () => {
+  if (cobroEnProceso.current || cargando || !orden?.abierta) {
+    return;
+  }
+
+  // Bloqueamos inmediatamente los clics repetidos.
+  cobroEnProceso.current = true;
+
+  try {
+    const nombreMetodo =
+      metodoPago === "efectivo" ? "Efectivo" : "Mercado Pago";
+
     const confirmado = window.confirm(
-      `¿Cobrar ${formatearDinero(orden.total_centavos)} de la MESA ${orden.num_mesa}?`
+      `¿Confirmas el cobro de ${formatearDinero(
+        orden.total_centavos
+      )} de la MESA ${orden.num_mesa}?\n\nMétodo: ${nombreMetodo}`
     );
+
     if (!confirmado) return;
 
-    try {
-      setCargando(true);
-      const venta = await cobrarMesa(orden.num_mesa);
-      setVentaCobrada(venta);   // ← esto hace aparecer el ticket
-      await cargarTicket();     // la mesa ya quedó cerrada en la base
-    } catch (err) {
-      console.error("Error al cobrar:", err);
-      alert(`No se pudo cobrar: ${err.message}`);
-    } finally {
-      setCargando(false);
-    }
-  };
+    setCargando(true);
+
+    const venta = await cobrarMesa(
+      orden.num_mesa,
+      metodoPago
+    );
+
+    setVentaCobrada(venta);
+    await cargarTicket();
+
+  } catch (err) {
+    console.error("Error al cobrar:", err);
+
+    alert(
+      `No se pudo confirmar el cobro: ${err.message}\n\n` +
+      "Si el pago ya fue realizado, verifica el historial de " +
+      "ventas antes de intentar cobrar nuevamente."
+    );
+  } finally {
+    cobroEnProceso.current = false;
+    setCargando(false);
+  }
+};
+
 
   const handleGuardarEdicion = async () => {
     if (!productoAeditar) return;
@@ -312,26 +342,86 @@ export default function DetalleMesa({ mesaSeleccionada }) {
     </div>
   );
 
-  const seccionCobrar = (
-    <div style={{ marginTop: "30px", paddingTop: "15px", borderTop: "1px solid #ddd" }}>
+
+const seccionCobrar = (
+  <div
+    style={{
+      marginTop: "30px",
+      paddingTop: "15px",
+      borderTop: "1px solid #ddd",
+    }}
+  >
+    <h3>Método de pago</h3>
+
+    <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
       <button
         type="button"
-        onClick={handleCobrar}
+        disabled={cargando}
+        onClick={() => setMetodoPago("efectivo")}
         style={{
-          padding: "12px 20px",
-          backgroundColor: "#28a745",
-          color: "white",
-          border: "none",
-          borderRadius: "6px",
-          fontSize: "16px",
-          fontWeight: "bold",
+          flex: 1,
+          padding: "14px",
+          borderRadius: "8px",
+          border: metodoPago === "efectivo"
+            ? "2px solid #009745"
+            : "1px solid #ccc",
+          backgroundColor:
+            metodoPago === "efectivo" ? "#e2f4e9" : "white",
           cursor: "pointer",
         }}
       >
-        💳 Cobrar {formatearDinero(orden?.total_centavos ?? 0)} e imprimir ticket
+        💵 Efectivo
+      </button>
+
+      <button
+        type="button"
+        disabled={cargando}
+        onClick={() => setMetodoPago("tarjeta")}
+        style={{
+          flex: 1,
+          padding: "14px",
+          borderRadius: "8px",
+          border: metodoPago === "tarjeta"
+            ? "2px solid #009745"
+            : "1px solid #ccc",
+          backgroundColor:
+            metodoPago === "tarjeta" ? "#e2f4e9" : "white",
+          cursor: "pointer",
+        }}
+      >
+        💳 Mercado Pago
       </button>
     </div>
-  );
+
+    {metodoPago === "tarjeta" && (
+      <p style={{ fontSize: "13px", color: "#795548" }}>
+        Verifica que el pago haya sido aprobado
+        en la terminal Mercado Pago antes de cobrar.
+      </p>
+    )}
+
+    <button
+      type="button"
+      onClick={handleCobrar}
+      disabled={cargando}
+      style={{
+        width: "100%",
+        padding: "14px 20px",
+        backgroundColor: "#009745",
+        color: "white",
+        border: "none",
+        borderRadius: "8px",
+        fontSize: "16px",
+        fontWeight: "bold",
+        cursor: cargando ? "not-allowed" : "pointer",
+      }}
+    >
+      💳 Cobrar {formatearDinero(orden?.total_centavos ?? 0)}
+      {" "}e imprimir ticket
+    </button>
+  </div>
+);
+
 
   // -------------------------------------------------------------------
   // GUARDAS: cada una decide qué pantalla mostrar y corta con "return"

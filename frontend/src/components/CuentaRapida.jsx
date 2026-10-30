@@ -1,12 +1,14 @@
-
-import { useEffect, useState } from "react";
-import { obtenerTicket } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { obtenerTicket, cobrarMesa } from "../api";
 import { formatearDinero } from "../formato";
 
-export default function CuentaRapida({ numMesa, onCerrar }) {
+export default function CuentaRapida({ numMesa, onCerrar, onCobroExitoso }) {
   const [orden, setOrden] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
+  const [metodoPago, setMetodoPago] = useState("efectivo");
+  const cobroEnProceso = useRef(false);
+  const [cobrando, setCobrando] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -39,6 +41,56 @@ export default function CuentaRapida({ numMesa, onCerrar }) {
       activo = false;
     };
   }, [numMesa]);
+
+  const handleCobrar = async () => {
+    if (
+      cobroEnProceso.current ||
+      cargando ||
+      !orden?.abierta ||
+      !orden.productos.length
+    ) {
+      return;
+    }
+
+    cobroEnProceso.current = true;
+
+    const nombreMetodo =
+      metodoPago === "efectivo" ? "Efectivo" : "Mercado Pago";
+
+    const confirmado = window.confirm(
+      `¿Confirmas el cobro de ${formatearDinero(
+        orden.total_centavos,
+      )} de la MESA ${numMesa}?\n\nMétodo: ${nombreMetodo}`,
+    );
+
+    if (!confirmado) {
+      cobroEnProceso.current = false;
+      return;
+    }
+
+    setCobrando(true);
+
+    try {
+      console.log("COBRO RAPIDO:", {
+        mesa: numMesa,
+        metodoPago: metodoPago,
+      });
+      const venta = await cobrarMesa(numMesa, metodoPago);
+
+      // Croquis conservará la venta para mostrar el ticket.
+      onCobroExitoso(venta);
+    } catch (err) {
+      console.error("Error en cobro rápido:", err);
+
+      setError(
+        `No se pudo confirmar el cobro: ${err.message}. ` +
+          "Revisa el historial de ventas antes de intentarlo de nuevo.",
+      );
+    } finally {
+      cobroEnProceso.current = false;
+      setCobrando(false);
+    }
+  };
 
   return (
     <section className="cuenta-rapida">
@@ -89,8 +141,7 @@ export default function CuentaRapida({ numMesa, onCerrar }) {
 
                       <span>
                         {formatearDinero(
-                          producto.cantidad *
-                            producto.precio_centavos
+                          producto.cantidad * producto.precio_centavos,
                         )}
                       </span>
                     </div>
@@ -101,15 +152,55 @@ export default function CuentaRapida({ numMesa, onCerrar }) {
               <div className="cuenta-rapida-total">
                 <span>Total a pagar</span>
 
-                <strong>
-                  {formatearDinero(orden.total_centavos)}
-                </strong>
+                <strong>{formatearDinero(orden.total_centavos)}</strong>
               </div>
 
-              <p className="cuenta-rapida-nota">
-                Vista de consulta. El cobro se habilitará
-                después de probar este panel.
-              </p>
+              <div className="cuenta-metodo-pago">
+                <h4>Método de pago</h4>
+
+                <div className="cuenta-metodos">
+                  <button
+                    type="button"
+                    className={metodoPago === "efectivo" ? "metodo-activo" : ""}
+                    onClick={() => setMetodoPago("efectivo")}
+                  >
+                    💵 Efectivo
+                  </button>
+
+                  <button
+                    type="button"
+                    className={metodoPago === "tarjeta" ? "metodo-activo" : ""}
+                    onClick={() => setMetodoPago("tarjeta")}
+                  >
+                    💳 Mercado Pago
+                  </button>
+                </div>
+
+                {metodoPago === "tarjeta" && (
+                  <p className="cuenta-aviso-tarjeta">
+                    Verifica que el pago haya sido aprobado en la terminal
+                    Mercado Pago.
+                  </p>
+                )}
+
+                <p className="cuenta-metodo-seleccionado">
+                  Seleccionado:{" "}
+                  {metodoPago === "efectivo" ? "Efectivo" : "Mercado Pago"}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="cuenta-boton-confirmar"
+                onClick={handleCobrar}
+                disabled={cobrando || orden.productos.length === 0}
+              >
+                {cobrando
+                  ? "Procesando cobro..."
+                  : `Confirmar cobro de ${formatearDinero(
+                      orden.total_centavos,
+                    )}`}
+              </button>
             </>
           )}
         </>

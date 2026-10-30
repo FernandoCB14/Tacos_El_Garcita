@@ -66,11 +66,29 @@ def inicializar_bd():
         """)
         con.execute("""
             CREATE TABLE IF NOT EXISTS ventas(
-                venta_id        INTEGER PRIMARY KEY,
-                num_mesa        INTEGER,
-                abierta_en      TEXT,
-                cerrada_en      TEXT DEFAULT (datetime('now','localtime')),
-                total_centavos  INTEGER NOT NULL
+                venta_id INTEGER PRIMARY KEY,
+                num_mesa INTEGER,
+                abierta_en TEXT,
+                cerrada_en TEXT DEFAULT (datetime('now','localtime')),
+                total_centavos INTEGER NOT NULL,
+
+                metodo_pago TEXT NOT NULL DEFAULT 'efectivo'
+                    CHECK (metodo_pago IN ('efectivo', 'tarjeta')),
+
+                comision_porcentaje REAL,
+                iva_comision_porcentaje REAL,
+
+                comision_centavos INTEGER
+                    CHECK (
+                        comision_centavos IS NULL
+                        OR comision_centavos >= 0
+                    ),
+
+                neto_centavos INTEGER
+                    CHECK (
+                        neto_centavos IS NULL
+                        OR neto_centavos >= 0
+                    )
             );
         """)
         con.execute("""
@@ -85,6 +103,23 @@ def inicializar_bd():
                 FOREIGN KEY (venta_id) REFERENCES ventas(venta_id)
             );
         """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS configuracion_pagos (
+                clave TEXT PRIMARY KEY,
+                valor TEXT NOT NULL
+            );
+        """)
+
+        con.executemany(
+            """
+            INSERT OR IGNORE INTO configuracion_pagos (clave, valor)
+            VALUES (?, ?);
+            """,
+            [
+                ("comision_mercado_pago", "3.50"),
+                ("iva_comision", "16.00"),
+            ],
+        )
 
 
 def cargar_menu():

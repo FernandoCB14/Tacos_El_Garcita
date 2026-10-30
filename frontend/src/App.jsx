@@ -66,6 +66,7 @@ function App() {
           onVerCuenta={setMesaParaCobrar}
           mesaParaCobrar={mesaParaCobrar}
           setMesaParaCobrar={setMesaParaCobrar}
+          onActualizarMesas={actualizarEstado}
         />
       ) : (
         /* PANTALLA 2: DETALLE DE LA COMANDA */

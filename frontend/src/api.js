@@ -37,13 +37,24 @@ export const cerrarMesa = async (num_mesa) => {
   return pedir(`/ordenes/${num_mesa}/cerrar`, { method: "DELETE" }, "Error al cerrar la mesa");
 };
 
-export const cobrarMesa = (num_mesa) =>{
+export const cobrarMesa = (num_mesa, metodo_pago) => {
   if (!num_mesa) {
-    throw new Error("Se requiere un número de mesa válido para poder cobrar.");
+    throw new Error(
+      "Se requiere un número de mesa válido para poder cobrar."
+    );
   }
-  return pedir(`/ordenes/${num_mesa}/cobrar`, { method: "POST" }, "Error al cobrar la mesa");
+
+  if (!["efectivo", "tarjeta"].includes(metodo_pago)) {
+    throw new Error("Selecciona un método de pago válido.");
+  }
+
+  return pedir(
+    `/ordenes/${num_mesa}/cobrar`,
+    conJSON("POST", { metodo_pago }),
+    "Error al cobrar la mesa"
+  );
 };
-  
+
 
 // ---- Menú y cuenta ----
 export const obtenerMenu = () =>
