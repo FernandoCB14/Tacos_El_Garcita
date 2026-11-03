@@ -18,6 +18,20 @@ const soloHora = (texto) => (texto ? texto.slice(11, 16) : "");
 
 // Solo DIBUJA: recibe los datos ya listos y no sabe nada de la red.
 export function ListaVentas({ datos, onVerTicket }) {
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroPago, setFiltroPago] = useState("todas");
+
+  const ventasFiltradas = datos.ventas.filter((venta) => {
+    const folio = String(venta.venta_id).padStart(5, "0");
+
+    const coincideFolio = folio.includes(busqueda.trim());
+
+    const coincidePago =
+      filtroPago === "todas" || venta.metodo_pago === filtroPago;
+
+    return coincideFolio && coincidePago;
+  });
+
   if (datos.cantidad === 0) {
     return <p>No hay ventas en esta fecha.</p>;
   }
@@ -57,60 +71,109 @@ export function ListaVentas({ datos, onVerTicket }) {
         </div>
       </div>
 
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "2px solid #ddd" }}>
-            <th style={{ padding: "6px" }}>Folio</th>
-            <th style={{ padding: "6px" }}>Hora</th>
-            <th style={{ padding: "6px" }}>Mesa</th>
-            <th style={{ padding: "6px" }}>Método de pago</th>
-            <th style={{ padding: "6px", textAlign: "right" }}>Total</th>
-            <th style={{ padding: "6px", textAlign: "right" }}>Comisión</th>
-            <th style={{ padding: "6px" }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {datos.ventas.map((v) => (
-            <tr key={v.venta_id} style={{ borderBottom: "1px solid #eee" }}>
-              <td style={{ padding: "6px" }}>
-                {String(v.venta_id).padStart(5, "0")}
-              </td>
-              <td style={{ padding: "6px" }}>{soloHora(v.cerrada_en)}</td>
-              <td style={{ padding: "6px" }}>{v.num_mesa}</td>
-              <td style={{ padding: "6px" }}>
-                {v.metodo_pago === "tarjeta"
-                  ? "💳 Mercado Pago"
-                  : v.metodo_pago === "efectivo"
-                    ? "💵 Efectivo"
-                    : "Sin clasificar"}
-              </td>
+      <div className="ventas-historial-controles">
+        <h3>Historial de operaciones</h3>
 
-              {/* TOTAL DE LA VENTA */}
-              <td style={{ padding: "6px", textAlign: "right" }}>
-                {formatearDinero(v.total_centavos)}
-              </td>
+        <input
+          type="search"
+          className="ventas-buscador"
+          placeholder="🔎 Buscar por folio..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          aria-label="Buscar venta por folio"
+        />
 
-              {/* COMISIÓN DE MERCADO PAGO */}
-              <td style={{ padding: "6px", textAlign: "right" }}>
-                {v.comision_centavos == null
-                  ? "Pendiente"
-                  : formatearDinero(v.comision_centavos)}
-              </td>
+        <div className="ventas-filtros">
+          <button
+            type="button"
+            className={filtroPago === "todas" ? "activo" : ""}
+            onClick={() => setFiltroPago("todas")}
+          >
+            Todas
+          </button>
 
-              {/* BOTÓN DEL TICKET */}
-              <td style={{ padding: "6px", textAlign: "right" }}>
-                <button
-                  type="button"
-                  onClick={() => onVerTicket(v.venta_id)}
-                  style={{ padding: "4px 10px", cursor: "pointer" }}
-                >
-                  🧾 Ver ticket
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          <button
+            type="button"
+            className={filtroPago === "efectivo" ? "activo" : ""}
+            onClick={() => setFiltroPago("efectivo")}
+          >
+            Efectivo
+          </button>
+
+          <button
+            type="button"
+            className={filtroPago === "tarjeta" ? "activo" : ""}
+            onClick={() => setFiltroPago("tarjeta")}
+          >
+            Mercado Pago
+          </button>
+        </div>
+
+        <p className="ventas-resultados">
+          {ventasFiltradas.length} ventas encontradas
+        </p>
+      </div>
+
+      <div className="ventas-lista">
+        {ventasFiltradas.length === 0 ? (
+          <p className="ventas-sin-resultados">
+            No se encontraron ventas con estos filtros.
+          </p>
+        ) : (
+          ventasFiltradas.map((v) => (
+            <div className="venta-fila" key={v.venta_id}>
+              <div
+                className={`venta-icono ${
+                  v.metodo_pago === "tarjeta"
+                    ? "venta-icono-tarjeta"
+                    : "venta-icono-efectivo"
+                }`}
+                aria-hidden="true"
+              >
+                {v.metodo_pago === "tarjeta" ? "💳" : "💵"}
+              </div>
+
+              <div className="venta-informacion">
+                <strong>
+                  Venta #{String(v.venta_id).padStart(5, "0")}
+                  {" · "}Mesa {v.num_mesa}
+                </strong>
+
+                <span>
+                  {soloHora(v.cerrada_en)}
+                  {" · "}
+                  {v.metodo_pago === "tarjeta"
+                    ? "Mercado Pago"
+                    : v.metodo_pago === "efectivo"
+                      ? "Efectivo"
+                      : "Sin clasificar"}
+                </span>
+              </div>
+
+              <div className="venta-importes">
+                <strong>{formatearDinero(v.total_centavos)}</strong>
+
+                <small>
+                  Comisión:{" "}
+                  {v.comision_centavos == null
+                    ? "Pendiente"
+                    : formatearDinero(v.comision_centavos)}
+                </small>
+              </div>
+
+              <button
+                type="button"
+                className="venta-boton-ticket"
+                onClick={() => onVerTicket(v.venta_id)}
+                aria-label={`Ver ticket de venta ${v.venta_id}`}
+                title="Ver o reimprimir ticket"
+              >
+                🧾
+              </button>
+            </div>
+          ))
+        )}
+      </div>
     </>
   );
 }
@@ -163,17 +226,28 @@ export default function VentasDelDia() {
 
   return (
     <div>
-      <h2>📊 Ventas del día</h2>
+      <div className="ventas-encabezado">
+        <div className="ventas-titulos">
+          <span className="ventas-subtitulo">
+            TACOS EL GARCITA · ADMINISTRACIÓN
+          </span>
+          <h2>Ventas del día</h2>
 
-      <label>
-        Fecha:{" "}
-        <input
-          type="date"
-          value={fecha}
-          max={hoyLocal()}
-          onChange={(e) => e.target.value && setFecha(e.target.value)}
-        />
-      </label>
+          <p>Consulta de ventas y movimientos</p>
+        </div>
+
+        <label className="ventas-fecha">
+          <span>📅</span>
+
+          <input
+            type="date"
+            value={fecha}
+            max={hoyLocal()}
+            onChange={(e) => e.target.value && setFecha(e.target.value)}
+            aria-label="Fecha de las ventas"
+          />
+        </label>
+      </div>
 
       <div style={{ marginTop: "16px" }}>
         {cargando && <p>Cargando ventas...</p>}

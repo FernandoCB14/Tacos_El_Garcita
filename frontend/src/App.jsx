@@ -71,7 +71,7 @@ function App() {
       ) : (
         /* PANTALLA 2: DETALLE DE LA COMANDA */
         <div>
-          <button
+          {/* <button
             onClick={handVolverAlcroquis}
             style={{
               marginBottom: "20px",
@@ -86,7 +86,7 @@ function App() {
             }}
           >
             ⬅️ Regresar al Croquis
-          </button>
+          </button> */}
 
           {vista === "detalle" && <DetalleMesa mesaSeleccionada={mesaSeleccionada} />}
           {vista === "ventas" && <VentasDelDia />}
