@@ -69,21 +69,36 @@ class DatosCobro(BaseModel):
 # -------------------------------------------------------------------
 # FUNCIÓN AUXILIAR: la regla de precios vive en UN solo lugar
 # -------------------------------------------------------------------
-def calcular_precio(precio_base_centavos: int, lleva_carne: int, carne: Optional[str]):
-    """Devuelve (carne_normalizada, precio_final_en_centavos).
 
-    Lanza 400 si el producto necesita carne y la que llegó no es válida.
-    """
+def calcular_precio(
+    precio_base_centavos: int,
+    lleva_carne: int,
+    carne: Optional[str]
+):
+    """Devuelve la carne normalizada y el precio final."""
+
     if not lleva_carne:
         return None, precio_base_centavos
 
-    carne = (carne or "").lower()
-    if carne not in CARNES_VALIDAS:
-        raise HTTPException(status_code=400, detail="Elige una carne válida para este producto")
+    carne = (carne or "").strip().lower()
 
+    # precio normal, sin suplemento.
+    if carne == "normal":
+        return "normal", precio_base_centavos
+
+    # Conservamos la validación de las carnes existentes.
+    if carne not in CARNES_VALIDAS:
+        raise HTTPException(
+            status_code=400,
+            detail="Elige una opción válida para este producto"
+        )
+
+    # Solo Suadero tiene recargo.
     if carne == "suadero":
         precio_base_centavos += RECARGO_SUADERO_CENTAVOS
+
     return carne, precio_base_centavos
+
 
 def leer_venta(con, venta_id: int):
     """Lee una venta ya guardada, con sus renglones. Devuelve None si no existe."""
@@ -204,7 +219,7 @@ def agregar_producto(datos: ProductoNuevo):
             if producto is None:
                 raise HTTPException(status_code=404, detail="Ese producto no existe en el menú.")
 
-            # 3. El backend decide la carne y el precio, nunca el frontend
+            # 3. El backend decide la carne y el precio
             carne, precio_centavos = calcular_precio(
                 producto["precio_centavos"], producto["lleva_carne"], datos.carne
             )

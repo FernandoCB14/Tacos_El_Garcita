@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import CuentaRapida from "./CuentaRapida";
 import TicketModal from "./TicketModal";
+import { abrirMesa } from "../api";
 
 export default function Croquis({
   mesaSeleccionada,
@@ -12,6 +13,38 @@ export default function Croquis({
   onActualizarMesas,
 }) {
   const [ventaCobrada, setVentaCobrada] = useState(null);
+
+  const [mesaAbriendo, setMesaAbriendo] = useState(null);
+
+  const handleEntrarMesa = async (num, estaOcupada) => {
+    // Evitamos abrir dos mesas al mismo tiempo.
+    if (mesaAbriendo !== null) return;
+
+    // Si ya está ocupada, solo mostramos su comanda.
+    if (estaOcupada) {
+      setMesaSeleccionada(num);
+      return;
+    }
+
+    try {
+      setMesaAbriendo(num);
+
+      // Abrimos la mesa en la base de datos.
+      await abrirMesa(num);
+
+      // Actualizamos el estado del croquis.
+      await onActualizarMesas();
+
+      // Entramos a la comanda cuando la apertura terminó.
+      setMesaSeleccionada(num);
+    } catch (err) {
+      console.error("Error al abrir mesa:", err);
+
+      alert(`No se pudo abrir la Mesa ${num}: ${err.message}`);
+    } finally {
+      setMesaAbriendo(null);
+    }
+  };
 
   const handleCobroExitoso = (venta) => {
     setVentaCobrada(venta);
@@ -73,9 +106,14 @@ export default function Croquis({
                   <button
                     type="button"
                     className="mesa-boton-principal"
-                    onClick={() => setMesaSeleccionada(num)}
+                    disabled={mesaAbriendo !== null}
+                    onClick={() => handleEntrarMesa(num, estaOcupada)}
                   >
-                    {estaOcupada ? "Ver comanda" : "Abrir mesa"}
+                    {mesaAbriendo === num
+                      ? "Abriendo..."
+                      : estaOcupada
+                        ? "Ver comanda"
+                        : "Abrir mesa"}
                   </button>
 
                   {estaOcupada && (

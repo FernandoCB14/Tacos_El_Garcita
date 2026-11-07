@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { formatearDinero } from "../formato";
 import TicketModal from "./TicketModal";
+import "../styles/detalle-mesa.css";
 import {
   obtenerTicket,
   obtenerMenu,
@@ -28,7 +29,7 @@ const ETIQUETAS_CATEGORIA = {
   frios: "Bebidas y postre",
 };
 
-export default function DetalleMesa({ mesaSeleccionada }) {
+export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
   // ---- Estado "real": datos que no se pueden calcular a partir de otros ----
   const [orden, setOrden] = useState(null);
   const [menu, setMenu] = useState([]);
@@ -41,6 +42,7 @@ export default function DetalleMesa({ mesaSeleccionada }) {
   const [cantidad, setCantidad] = useState(1);
 
   const [productoAeditar, setProductoAeditar] = useState(null);
+  const [productoAgregando, setProductoAgregando] = useState(false);
   const [ventaCobrada, setVentaCobrada] = useState(null); // la venta que se muestra el ticket
   const cobroEnProceso = useRef(false);
   const [metodoPago, setMetodoPago] = useState("efectivo");
@@ -49,10 +51,16 @@ export default function DetalleMesa({ mesaSeleccionada }) {
   // [...new Set(...)] quita las categorías repetidas y las vuelve a convertir en lista.
   const categorias = [...new Set(menu.map((p) => p.categoria))];
   const categoriaActiva = categoria ?? categorias[0];
-  const productosDeCategoria = menu.filter((p) => p.categoria === categoriaActiva);
-  const productoElegido = productosDeCategoria.find((p) => p.producto_id === productoId);
+  const productosDeCategoria = menu.filter(
+    (p) => p.categoria === categoriaActiva,
+  );
+  const productoElegido = productosDeCategoria.find(
+    (p) => p.producto_id === productoId,
+  );
 
-  // En el panel de edición: ¿el producto que se edita lleva carne?
+  const [productoActualizando, setProductoActualizando] = useState(null);
+  const [cantidadEditando, setCantidadEditando] = useState(null);
+  const [cantidadTemporal, setCantidadTemporal] = useState("");
   const productoDelCatalogo = productoAeditar
     ? menu.find((p) => p.producto_id === productoAeditar.producto_id)
     : null;
@@ -139,6 +147,32 @@ export default function DetalleMesa({ mesaSeleccionada }) {
     }
   };
 
+  const bloqueoAgregarRef = useRef(false);
+
+  const handleAgregarRapido = async (producto, tipoCarne = null) => {
+    if (bloqueoAgregarRef.current) return;
+
+    bloqueoAgregarRef.current = true;
+    setProductoAgregando(true);
+
+    try {
+      await agregarProducto({
+        num_mesa: mesaSeleccionada,
+        producto_id: producto.producto_id,
+        cantidad: 1,
+        carne: producto.lleva_carne === 1 ? tipoCarne : null,
+      });
+
+      await cargarTicket();
+    } catch (error) {
+      console.error("Error al agregar producto:", error);
+      alert(error.message || "No se pudo agregar el producto.");
+    } finally {
+      bloqueoAgregarRef.current = false;
+      setProductoAgregando(false);
+    }
+  };
+
   const handleEliminarProducto = async (orden_id) => {
     try {
       await eliminarProducto(orden_id);
@@ -150,75 +184,144 @@ export default function DetalleMesa({ mesaSeleccionada }) {
   };
 
   const handleCerrarMesa = async (num_mesa) => {
-    if (!num_mesa) {
-      alert("⚠️ Error: No se especificó el número de mesa.");
+    if (!num_mesa || !orden?.abierta) return;
+
+    // Solo permitimos cerrar sin cobrar si no hay productos.
+    if (orden.productos.length > 0) {
+      alert(
+        "Esta mesa tiene productos registrados. " +
+          "Debes cobrarla antes de cerrarla.",
+      );
       return;
     }
 
     const confirmado = window.confirm(
-      `🚨 ¿Confirmas que deseas cobrar y cerrar la MESA ${num_mesa}?\n\nEsta acción borrará el ticket actual y liberará la mesa.`
+      `¿Deseas cerrar la Mesa ${num_mesa}?\n\n` +
+        "La mesa está vacía y no se registrará ninguna venta.",
     );
+
     if (!confirmado) return;
 
     try {
       setCargando(true);
+
       await cerrarMesa(num_mesa);
-      alert(`✅ La Mesa ${num_mesa} ha sido cerrada con éxito.`);
-      await cargarTicket();
+      onMesaCerrada?.();
     } catch (err) {
-      console.error("Error al cerrar la mesa:", err);
+      console.error("Error al cerrar mesa:", err);
       alert(`No se pudo cerrar la mesa: ${err.message}`);
     } finally {
       setCargando(false);
     }
   };
 
+  const handleCobrar = async () => {
+    if (
+      cobroEnProceso.current ||
+      cargando ||
+      !orden?.abierta ||
+      !orden?.productos?.length ||
+      orden.total_centavos <= 0
+    ) {
+      return;
+    }
 
+    // Bloqueamos inmediatamente los clics repetidos.
+    cobroEnProceso.current = true;
 
-const handleCobrar = async () => {
-  if (cobroEnProceso.current || cargando || !orden?.abierta) {
-    return;
-  }
+    try {
+      const nombreMetodo =
+        metodoPago === "efectivo" ? "Efectivo" : "Mercado Pago";
 
-  // Bloqueamos inmediatamente los clics repetidos.
-  cobroEnProceso.current = true;
+      const confirmado = window.confirm(
+        `¿Confirmas el cobro de ${formatearDinero(
+          orden.total_centavos,
+        )} de la MESA ${orden.num_mesa}?\n\nMétodo: ${nombreMetodo}`,
+      );
 
-  try {
-    const nombreMetodo =
-      metodoPago === "efectivo" ? "Efectivo" : "Mercado Pago";
+      if (!confirmado) return;
 
-    const confirmado = window.confirm(
-      `¿Confirmas el cobro de ${formatearDinero(
-        orden.total_centavos
-      )} de la MESA ${orden.num_mesa}?\n\nMétodo: ${nombreMetodo}`
-    );
+      setCargando(true);
 
-    if (!confirmado) return;
+      const venta = await cobrarMesa(orden.num_mesa, metodoPago);
 
-    setCargando(true);
+      setVentaCobrada(venta);
+      await cargarTicket();
+    } catch (err) {
+      console.error("Error al cobrar:", err);
 
-    const venta = await cobrarMesa(
-      orden.num_mesa,
-      metodoPago
-    );
+      alert(
+        `No se pudo confirmar el cobro: ${err.message}\n\n` +
+          "Si el pago ya fue realizado, verifica el historial de " +
+          "ventas antes de intentar cobrar nuevamente.",
+      );
+    } finally {
+      cobroEnProceso.current = false;
+      setCargando(false);
+    }
+  };
 
-    setVentaCobrada(venta);
-    await cargarTicket();
+  const handleCambiarCantidad = async (producto, cambio) => {
+    if (productoActualizando !== null || cargando) return;
 
-  } catch (err) {
-    console.error("Error al cobrar:", err);
+    const nuevaCantidad = producto.cantidad + cambio;
 
-    alert(
-      `No se pudo confirmar el cobro: ${err.message}\n\n` +
-      "Si el pago ya fue realizado, verifica el historial de " +
-      "ventas antes de intentar cobrar nuevamente."
-    );
-  } finally {
-    cobroEnProceso.current = false;
-    setCargando(false);
-  }
-};
+    // Nunca permitimos cantidades menores que 1.
+    if (nuevaCantidad < 1) return;
 
+    try {
+      setProductoActualizando(producto.orden_id);
+
+      await actualizarProducto({
+        orden_id: producto.orden_id,
+        cantidad: nuevaCantidad,
+        carne: producto.tipo_carne ?? null,
+      });
+
+      await cargarTicket();
+    } catch (err) {
+      console.error("Error al actualizar cantidad:", err);
+      alert(`No se pudo actualizar la cantidad: ${err.message}`);
+    } finally {
+      setProductoActualizando(null);
+    }
+  };
+
+  const handleGuardarCantidadExacta = async (producto) => {
+    const nuevaCantidad = Number(cantidadTemporal);
+
+    // Validamos que sea un número entero positivo.
+    if (
+      !Number.isSafeInteger(nuevaCantidad) ||
+      nuevaCantidad < 1 ||
+      cantidadTemporal.trim() === ""
+    ) {
+      alert("Introduce una cantidad válida mayor que cero.");
+      return;
+    }
+
+    if (productoActualizando !== null || cargando) return;
+
+    try {
+      setProductoActualizando(producto.orden_id);
+
+      await actualizarProducto({
+        orden_id: producto.orden_id,
+        cantidad: nuevaCantidad,
+        carne: producto.tipo_carne ?? null,
+      });
+
+      await cargarTicket();
+
+      setCantidadEditando(null);
+      setCantidadTemporal("");
+    } catch (err) {
+      console.error("Error al guardar cantidad:", err);
+      alert(`No se pudo actualizar la cantidad: ${err.message}`);
+    } finally {
+      setProductoActualizando(null);
+    }
+  };
 
   const handleGuardarEdicion = async () => {
     if (!productoAeditar) return;
@@ -236,9 +339,6 @@ const handleCobrar = async () => {
     }
   };
 
-  // -------------------------------------------------------------------
-  // PIEZAS REUTILIZABLES (se escriben una vez y se usan en varias pantallas)
-  // -------------------------------------------------------------------
   const formularioAgregar = (
     <form onSubmit={handleSubmit} style={{ marginTop: "20px" }}>
       <h3>Agregar a la mesa</h3>
@@ -247,23 +347,20 @@ const handleCobrar = async () => {
         <p>Cargando menú...</p>
       ) : (
         <>
-          {/* Pestañas de categoría. type="button" evita que envíen el formulario. */}
-          <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+          {/* Categorías de Comanda Express */}
+          <div className="comanda-categorias">
             {categorias.map((cat) => {
               const activa = cat === categoriaActiva;
+
               return (
                 <button
-                  type="button"
                   key={cat}
-                  onClick={() => setCategoria(cat)}
-                  style={{
-                    padding: "6px 12px",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontWeight: activa ? "bold" : "normal",
-                    backgroundColor: activa ? "#007bff" : "#eee",
-                    color: activa ? "white" : "black",
+                  type="button"
+                  disabled={cargando}
+                  className={`comanda-categoria ${activa ? "activa" : ""}`}
+                  onClick={() => {
+                    setCategoria(cat);
+                    setProductoId(null);
                   }}
                 >
                   {ETIQUETAS_CATEGORIA[cat] ?? cat}
@@ -272,57 +369,130 @@ const handleCobrar = async () => {
             })}
           </div>
 
-          {/* Producto */}
-          <div>
-            <label>Producto: </label>
-            <select
-              value={productoElegido?.producto_id ?? ""}
-              onChange={(e) => setProductoId(Number(e.target.value))}
-            >
-              <option value="">-- Elige --</option>
-              {productosDeCategoria.map((p) => (
-                <option key={p.producto_id} value={p.producto_id}>
-                  {p.nombre} - {formatearDinero(p.precio_centavos)}
-                </option>
-              ))}
-            </select>
+          {/* Productos del menú */}
+          <div className="comanda-productos-grid">
+            {productosDeCategoria.map((p) => {
+              const seleccionado = productoId === p.producto_id;
+              const esConQueso = p.categoria === "con_queso";
+              const esTaco= p.categoria === "tacos";
+              const esBebida = p.categoria === "frios";
+              const llevaCarne = p.lleva_carne === 1;
+
+              // Categoría Con queso: venta directa
+              if (esConQueso || esTaco || esBebida) {
+                return (
+                  <div
+                    key={p.producto_id}
+                    className="comanda-producto comanda-producto-rapido"
+                  >
+                    <span className="comanda-producto-nombre">{p.nombre}</span>
+
+                    <span className="comanda-producto-precio">
+                      {formatearDinero(p.precio_centavos)}
+                    </span>
+
+                    <div className="comanda-producto-botones">
+                      {esConQueso && llevaCarne && esBebida ? (
+                        <>
+                          <button
+                            type="button"
+                            className="comanda-boton-normal"
+                            disabled={cargando || productoAgregando}
+                            onClick={() => handleAgregarRapido(p, "normal")}
+                          >
+                            + Normal
+                          </button>
+
+                          <button
+                            type="button"
+                            className="comanda-boton-suadero"
+                            disabled={cargando || productoAgregando}
+                            onClick={() => handleAgregarRapido(p, "suadero")}
+                          >
+                            + Suadero
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="comanda-boton-agregar"
+                          disabled={cargando || productoAgregando}
+                          onClick={() => handleAgregarRapido(p, null)}
+                        >
+                          + Agregar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Otras categorías
+              return (
+                <button
+                  key={p.producto_id}
+                  type="button"
+                  disabled={cargando || productoAgregando}
+                  className={`comanda-producto ${
+                    seleccionado ? "seleccionado" : ""
+                  }`}
+                  onClick={() => setProductoId(p.producto_id)}
+                >
+                  <span className="comanda-producto-nombre">{p.nombre}</span>
+
+                  <span className="comanda-producto-precio">
+                    {formatearDinero(p.precio_centavos)}
+                  </span>
+
+                  <span className="comanda-producto-accion">
+                    {seleccionado ? "✓ Seleccionado" : "+ Seleccionar"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Carne: solo aparece si el producto elegido la lleva */}
-          {productoElegido?.lleva_carne === 1 && (
-            <div style={{ marginTop: "10px" }}>
-              <label>Carne: </label>
-              <select value={carne} onChange={(e) => setCarne(e.target.value)}>
-                {CARNES.map((c) => (
-                  <option key={c.valor} value={c.valor}>
-                    {c.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {categoriaActiva !== "con_queso" &&  categoriaActiva !== "tacos" && categoriaActiva !== "frios" &&(
+            <>
+              {/* Carne: solo aparece si el producto elegido la lleva */}
+              {productoElegido?.lleva_carne === 1 && (
+                <div style={{ marginTop: "10px" }}>
+                  <label>Carne: </label>
+                  <select
+                    value={carne}
+                    onChange={(e) => setCarne(e.target.value)}
+                  >
+                    {CARNES.map((c) => (
+                      <option key={c.valor} value={c.valor}>
+                        {c.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={cargando}
+                style={{ marginTop: "10px" }}
+              >
+                {cargando ? "Agregando..." : "Agregar"}
+              </button>
+            </>
           )}
-
-          {/* Cantidad */}
-          <div style={{ marginTop: "10px" }}>
-            <label>Cantidad: </label>
-            <input
-              type="number"
-              min="1"
-              value={cantidad}
-              onChange={(e) => setCantidad(parseInt(e.target.value, 10) || 1)}
-            />
-          </div>
-
-          <button type="submit" disabled={cargando} style={{ marginTop: "10px" }}>
-            {cargando ? "Agregando..." : "Agregar"}
-          </button>
         </>
       )}
     </form>
   );
 
   const seccionCerrarMesa = (
-    <div style={{ marginTop: "30px", paddingTop: "15px", borderTop: "1px solid #ddd" }}>
+    <div
+      style={{
+        marginTop: "30px",
+        paddingTop: "15px",
+        borderTop: "1px solid #ddd",
+      }}
+    >
       <h3>Cerrar mesa</h3>
       <button
         type="button"
@@ -342,90 +512,84 @@ const handleCobrar = async () => {
     </div>
   );
 
-
-const seccionCobrar = (
-  <div
-    style={{
-      marginTop: "30px",
-      paddingTop: "15px",
-      borderTop: "1px solid #ddd",
-    }}
-  >
-    <h3>Método de pago</h3>
-
-    <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
-      <button
-        type="button"
-        disabled={cargando}
-        onClick={() => setMetodoPago("efectivo")}
-        style={{
-          flex: 1,
-          padding: "14px",
-          borderRadius: "8px",
-          border: metodoPago === "efectivo"
-            ? "2px solid #009745"
-            : "1px solid #ccc",
-          backgroundColor:
-            metodoPago === "efectivo" ? "#e2f4e9" : "white",
-          cursor: "pointer",
-        }}
-      >
-        💵 Efectivo
-      </button>
-
-      <button
-        type="button"
-        disabled={cargando}
-        onClick={() => setMetodoPago("tarjeta")}
-        style={{
-          flex: 1,
-          padding: "14px",
-          borderRadius: "8px",
-          border: metodoPago === "tarjeta"
-            ? "2px solid #009745"
-            : "1px solid #ccc",
-          backgroundColor:
-            metodoPago === "tarjeta" ? "#e2f4e9" : "white",
-          cursor: "pointer",
-        }}
-      >
-        💳 Mercado Pago
-      </button>
-    </div>
-
-    {metodoPago === "tarjeta" && (
-      <p style={{ fontSize: "13px", color: "#795548" }}>
-        Verifica que el pago haya sido aprobado
-        en la terminal Mercado Pago antes de cobrar.
-      </p>
-    )}
-
-    <button
-      type="button"
-      onClick={handleCobrar}
-      disabled={cargando}
+  const seccionCobrar = (
+    <div
       style={{
-        width: "100%",
-        padding: "14px 20px",
-        backgroundColor: "#009745",
-        color: "white",
-        border: "none",
-        borderRadius: "8px",
-        fontSize: "16px",
-        fontWeight: "bold",
-        cursor: cargando ? "not-allowed" : "pointer",
+        marginTop: "30px",
+        paddingTop: "15px",
+        borderTop: "1px solid #ddd",
       }}
     >
-      💳 Cobrar {formatearDinero(orden?.total_centavos ?? 0)}
-      {" "}e imprimir ticket
-    </button>
-  </div>
-);
+      <h3>Método de pago</h3>
 
+      <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
+        <button
+          type="button"
+          disabled={cargando}
+          onClick={() => setMetodoPago("efectivo")}
+          style={{
+            flex: 1,
+            padding: "14px",
+            borderRadius: "8px",
+            border:
+              metodoPago === "efectivo"
+                ? "2px solid #009745"
+                : "1px solid #ccc",
+            backgroundColor: metodoPago === "efectivo" ? "#e2f4e9" : "white",
+            cursor: "pointer",
+          }}
+        >
+          💵 Efectivo
+        </button>
 
-  // -------------------------------------------------------------------
-  // GUARDAS: cada una decide qué pantalla mostrar y corta con "return"
-  // -------------------------------------------------------------------
+        <button
+          type="button"
+          disabled={cargando}
+          onClick={() => setMetodoPago("tarjeta")}
+          style={{
+            flex: 1,
+            padding: "14px",
+            borderRadius: "8px",
+            border:
+              metodoPago === "tarjeta" ? "2px solid #009745" : "1px solid #ccc",
+            backgroundColor: metodoPago === "tarjeta" ? "#e2f4e9" : "white",
+            cursor: "pointer",
+          }}
+        >
+          💳 Mercado Pago
+        </button>
+      </div>
+
+      {metodoPago === "tarjeta" && (
+        <p style={{ fontSize: "13px", color: "#795548" }}>
+          Verifica que el pago haya sido aprobado en la terminal Mercado Pago
+          antes de cobrar.
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={handleCobrar}
+        disabled={
+          cargando || !orden?.productos?.length || orden.total_centavos <= 0
+        }
+        style={{
+          width: "100%",
+          padding: "14px 20px",
+          backgroundColor: "#009745",
+          color: "white",
+          border: "none",
+          borderRadius: "8px",
+          fontSize: "16px",
+          fontWeight: "bold",
+          cursor: cargando ? "not-allowed" : "pointer",
+        }}
+      >
+        💳 Cobrar {formatearDinero(orden?.total_centavos ?? 0)} e imprimir
+        ticket
+      </button>
+    </div>
+  );
 
   // 1. Esperando respuesta de la API
   if (cargando) {
@@ -471,132 +635,252 @@ const seccionCobrar = (
           🟢 Abrir Mesa
         </button>
         {ventaCobrada && (
-          <TicketModal venta={ventaCobrada} onCerrar={() => setVentaCobrada(null)} />
+          <TicketModal
+            venta={ventaCobrada}
+            onCerrar={() => setVentaCobrada(null)}
+          />
         )}
       </div>
     );
   }
 
-  // 4. Mesa abierta, sin pedidos todavía
-  if (orden.productos.length === 0) {
-    return (
-      <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
-        <h3>Mesa {mesaSeleccionada} (abierta)</h3>
-        <p>Aún no hay pedidos.</p>
-
-        {formularioAgregar}
-        {seccionCerrarMesa}
-      </div>
-    );
-  }
-
-  // -------------------------------------------------------------------
-  // VISTA PRINCIPAL: mesa abierta con pedidos (sin "if": si llegamos aquí,
-  // es porque ninguna guarda de arriba se cumplió)
-  // -------------------------------------------------------------------
   return (
-    <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
-      <h3>Mesa {orden.num_mesa}</h3>
+    <div className="comanda-pagina">
+      <header className="comanda-encabezado">
+        <div>
+          <span className="comanda-subtitulo">TACOS EL GARCITA · COMANDAS</span>
 
-      <ul>
-        {orden.productos.map((producto) => (
-          <li key={producto.orden_id} style={{ marginBottom: "8px" }}>
-            {producto.cantidad} x {producto.nombre}
-            {producto.tipo_carne ? ` (${producto.tipo_carne})` : ""} -{" "}
-            {formatearDinero(producto.cantidad * producto.precio_centavos)}
+          <h2>Mesa {orden.num_mesa}</h2>
+          <p>Selecciona productos y administra la comanda.</p>
+        </div>
 
-            <button
-              onClick={() => handleEliminarProducto(producto.orden_id)}
-              style={{
-                marginLeft: "12px",
-                color: "#d9534f",
-                border: "1px solid #d9534f",
-                backgroundColor: "transparent",
-                borderRadius: "4px",
-                cursor: "pointer",
-                padding: "2px 8px",
-              }}
-            >
-              ❌ Eliminar
-            </button>
+        <span className="comanda-estado">● Mesa abierta</span>
+      </header>
 
-            <button
-              onClick={() => setProductoAeditar(producto)}
-              style={{ marginLeft: "8px", cursor: "pointer" }}
-            >
-              ✏️ Actualizar
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div className="comanda-layout">
+        <section className="comanda-menu-panel">{formularioAgregar}</section>
 
-      {/* Panel de edición */}
-      {productoAeditar && (
-        <div
-          style={{
-            margin: "15px 0",
-            padding: "15px",
-            border: "2px solid #007bff",
-            borderRadius: "6px",
-            backgroundColor: "#f4f8ff",
-          }}
-        >
-          <h4>✏️ Editando: {productoAeditar.nombre}</h4>
+        <aside className="comanda-ticket-panel">
+          <h3>Comanda actual</h3>
 
-          <div style={{ marginBottom: "10px" }}>
-            <label>
-              Cantidad:
-              <input
-                type="number"
-                min="1"
-                value={productoAeditar.cantidad}
-                onChange={(e) =>
-                  setProductoAeditar({
-                    ...productoAeditar,
-                    cantidad: parseInt(e.target.value, 10) || 1,
-                  })
-                }
-                style={{ marginLeft: "8px", width: "60px" }}
-              />
-            </label>
+          {orden.productos.length === 0 && (
+            <p className="comanda-vacia">
+              Todavía no hay productos en esta mesa.
+            </p>
+          )}
+
+          <div className="comanda-lista">
+            {orden.productos.map((producto) => (
+              <div key={producto.orden_id} className="comanda-item">
+                <div className="comanda-item-superior">
+                  <strong>{producto.nombre}</strong>
+
+                  <span className="comanda-item-precio">
+                    {formatearDinero(
+                      producto.cantidad * producto.precio_centavos,
+                    )}
+                  </span>
+                </div>
+
+                <div className="comanda-item-detalle">
+                  {producto.tipo_carne && (
+                    <span>Carne: {producto.tipo_carne}</span>
+                  )}
+                </div>
+
+                <div className="comanda-item-controles">
+                  <div className="comanda-cantidad-controles">
+                    <button
+                      type="button"
+                      disabled={
+                        productoActualizando !== null ||
+                        cargando ||
+                        producto.cantidad <= 1
+                      }
+                      onClick={() => handleCambiarCantidad(producto, -1)}
+                      aria-label={`Quitar una unidad de ${producto.nombre}`}
+                    >
+                      -
+                    </button>
+
+                    <button
+                      type="button"
+                      className="comanda-cantidad-valor"
+                      disabled={productoActualizando !== null || cargando}
+                      title="Introducir cantidad exacta"
+                      onClick={() => {
+                        setCantidadEditando(producto.orden_id);
+                        setCantidadTemporal(String(producto.cantidad));
+                      }}
+                    >
+                      {producto.cantidad}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={productoActualizando !== null || cargando}
+                      onClick={() => handleCambiarCantidad(producto, 1)}
+                      aria-label={`Agregar una unidad de ${producto.nombre}`}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <div className="comanda-item-acciones">
+                    <button
+                      type="button"
+                      className="comanda-item-eliminar"
+                      onClick={() => handleEliminarProducto(producto.orden_id)}
+                      aria-label={`Eliminar ${producto.nombre} de la comanda`}
+                      title={`Eliminar ${producto.nombre}`}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4h8v2" />
+                        <path d="M19 6l-1 14H6L5 6" />
+                        <path d="M10 10v7" />
+                        <path d="M14 10v7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {cantidadEditando === producto.orden_id && (
+                  <div className="comanda-cantidad-editor">
+                    <label htmlFor={`cantidad-${producto.orden_id}`}>
+                      Cantidad exacta
+                    </label>
+
+                    <input
+                      id={`cantidad-${producto.orden_id}`}
+                      type="number"
+                      min="1"
+                      step="1"
+                      inputMode="numeric"
+                      value={cantidadTemporal}
+                      onChange={(e) => setCantidadTemporal(e.target.value)}
+                    />
+
+                    <div className="comanda-cantidad-editor-acciones">
+                      <button
+                        type="button"
+                        disabled={productoActualizando !== null || cargando}
+                        onClick={() => handleGuardarCantidadExacta(producto)}
+                      >
+                        Guardar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCantidadEditando(null);
+                          setCantidadTemporal("");
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
 
-          {/* La carne solo se edita si el producto la lleva */}
-          {editaLlevaCarne && (
-            <div style={{ marginBottom: "10px" }}>
-              <label>
-                Carne:
-                <select
-                  value={productoAeditar.tipo_carne ?? "suadero"}
-                  onChange={(e) =>
-                    setProductoAeditar({
-                      ...productoAeditar,
-                      tipo_carne: e.target.value,
-                    })
-                  }
-                  style={{ marginLeft: "8px" }}
-                >
-                  {CARNES.map((c) => (
-                    <option key={c.valor} value={c.valor}>
-                      {c.etiqueta}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          {/* Panel de edición */}
+          {productoAeditar && (
+            <div
+              style={{
+                margin: "15px 0",
+                padding: "15px",
+                border: "2px solid #007bff",
+                borderRadius: "6px",
+                backgroundColor: "#f4f8ff",
+              }}
+            >
+              <h4>✏️ Editando: {productoAeditar.nombre}</h4>
+
+              <div style={{ marginBottom: "10px" }}>
+                <label>
+                  Cantidad:
+                  <input
+                    type="number"
+                    min="1"
+                    value={productoAeditar.cantidad}
+                    onChange={(e) =>
+                      setProductoAeditar({
+                        ...productoAeditar,
+                        cantidad: parseInt(e.target.value, 10) || 1,
+                      })
+                    }
+                    style={{ marginLeft: "8px", width: "60px" }}
+                  />
+                </label>
+              </div>
+
+              {/* La carne solo se edita si el producto la lleva */}
+              {editaLlevaCarne && (
+                <div style={{ marginBottom: "10px" }}>
+                  <label>
+                    Carne:
+                    <select
+                      value={productoAeditar.tipo_carne ?? "suadero"}
+                      onChange={(e) =>
+                        setProductoAeditar({
+                          ...productoAeditar,
+                          tipo_carne: e.target.value,
+                        })
+                      }
+                      style={{ marginLeft: "8px" }}
+                    >
+                      {CARNES.map((c) => (
+                        <option key={c.valor} value={c.valor}>
+                          {c.etiqueta}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+
+              <button
+                onClick={handleGuardarEdicion}
+                style={{ marginRight: "8px" }}
+              >
+                💾 Guardar
+              </button>
+              <button onClick={() => setProductoAeditar(null)}>
+                ❌ Cancelar
+              </button>
             </div>
           )}
 
-          <button onClick={handleGuardarEdicion} style={{ marginRight: "8px" }}>
-            💾 Guardar
-          </button>
-          <button onClick={() => setProductoAeditar(null)}>❌ Cancelar</button>
-        </div>
-      )}
+          <h4>Total a pagar: {formatearDinero(orden.total_centavos)}</h4>
 
-      <h4>Total a pagar: {formatearDinero(orden.total_centavos)}</h4>
+          {seccionCobrar}
 
-      {formularioAgregar}
-      {seccionCobrar}
+          {orden.productos.length === 0 && (
+            <button
+              type="button"
+              className="comanda-boton-cerrar-vacia"
+              onClick={() => handleCerrarMesa(orden.num_mesa)}
+              disabled={cargando}
+            >
+              Cerrar mesa vacía
+            </button>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }

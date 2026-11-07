@@ -1,0 +1,600 @@
+
+/* =====================================
+   Comanda Express - Tarjetas de productos
+   ===================================== */
+
+.comanda-productos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.comanda-producto {
+  min-height: 135px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+
+  border: 2px solid #ead8c3;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #24211e;
+  text-align: left;
+
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.comanda-producto:hover {
+  border-color: #ff8200;
+  background: #fffaf3;
+}
+
+.comanda-producto.seleccionado {
+  border-color: #009745;
+  background: #eaf7ee;
+}
+
+.comanda-producto:focus-visible {
+  outline: 3px solid #ff8200;
+  outline-offset: 3px;
+}
+
+.comanda-producto:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.comanda-producto-nombre {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.comanda-producto-precio {
+  color: #009745;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.comanda-producto-accion {
+  color: #856b4e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.comanda-producto.seleccionado .comanda-producto-accion {
+  color: #08783d;
+}
+
+@media (max-width: 850px) {
+  .comanda-productos-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 500px) {
+  .comanda-productos-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Categorías táctiles de Comanda Express */
+
+.comanda-categorias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.comanda-categoria {
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 2px solid #ead8c3;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #49382a;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.comanda-categoria:hover {
+  border-color: #ff8200;
+  background: #fff5e8;
+}
+
+.comanda-categoria.activa {
+  background: #ff8200;
+  border-color: #ff8200;
+  color: #ffffff;
+}
+
+.comanda-categoria:focus-visible {
+  outline: 3px solid #009745;
+  outline-offset: 3px;
+}
+
+.comanda-categoria:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 500px) {
+  .comanda-categoria {
+    flex: 1 1 auto;
+  }
+}
+
+
+/* =====================================
+   Comanda Express - Distribución general
+   ===================================== */
+
+.comanda-pagina {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 0 28px;
+}
+
+.comanda-encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.comanda-subtitulo {
+  color: #a96627;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}
+
+.comanda-encabezado h2 {
+  margin: 6px 0;
+  color: #29221c;
+  font-size: 30px;
+}
+
+.comanda-encabezado p {
+  margin: 0;
+  color: #807266;
+  font-size: 15px;
+}
+
+.comanda-estado {
+  padding: 10px 15px;
+  border-radius: 999px;
+  background: #e2f4e9;
+  color: #08783d;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.comanda-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.comanda-menu-panel,
+.comanda-ticket-panel {
+  min-width: 0;
+  padding: 20px;
+  background: #fffaf3;
+  border: 1px solid #ead8c3;
+  border-radius: 20px;
+}
+
+.comanda-ticket-panel {
+  background: #ffffff;
+}
+
+.comanda-ticket-panel h3 {
+  margin-top: 0;
+}
+
+.comanda-vacia {
+  padding: 20px;
+  background: #fff8ef;
+  border: 1px dashed #e6d6c4;
+  border-radius: 12px;
+  color: #807266;
+  text-align: center;
+}
+
+@media (max-width: 1000px) {
+  .comanda-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .comanda-menu-panel,
+  .comanda-ticket-panel {
+    padding: 14px;
+  }
+
+  .comanda-encabezado h2 {
+    font-size: 25px;
+  }
+}
+
+
+/* Cerrar una mesa sin productos */
+
+.comanda-boton-cerrar-vacia {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 14px;
+  padding: 12px 18px;
+
+  background: #ffffff;
+  color: #a43c32;
+  border: 1px solid #d9534f;
+  border-radius: 12px;
+
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.comanda-boton-cerrar-vacia:hover {
+  background: #fff0ee;
+}
+
+.comanda-boton-cerrar-vacia:focus-visible {
+  outline: 3px solid #ff8200;
+  outline-offset: 3px;
+}
+
+.comanda-boton-cerrar-vacia:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+
+/* =====================================
+   Comanda Express - Productos del ticket
+   ===================================== */
+
+.comanda-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.comanda-item {
+  padding: 16px;
+  background: #fffaf3;
+  border: 1px solid #ead8c3;
+  border-radius: 14px;
+}
+
+.comanda-item-superior {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.comanda-item-superior strong {
+  color: #29221c;
+  font-size: 17px;
+}
+
+.comanda-item-precio {
+  color: #009745;
+  font-size: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.comanda-item-detalle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+  color: #807266;
+  font-size: 14px;
+}
+
+.comanda-item-acciones {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.comanda-item-acciones button {
+  flex: 1;
+  min-height: 44px;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.comanda-item-editar {
+  background: #fff0dc;
+  color: #8a4b00;
+  border: 1px solid #ffca8a;
+}
+
+
+.comanda-item-acciones .comanda-item-eliminar {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #ffffff;
+  color: #b42318;
+  border: 1px solid #e5aaa5;
+  border-radius: 12px;
+
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.comanda-item-acciones .comanda-item-eliminar:hover {
+  background: #fff0ee;
+  border-color: #b42318;
+}
+
+
+.comanda-item-acciones button:focus-visible {
+  outline: 3px solid #ff8200;
+  outline-offset: 2px;
+}
+
+@media (max-width: 500px) {
+  .comanda-item-superior {
+    flex-wrap: wrap;
+  }
+}
+
+
+/* Controles rápidos de cantidad */
+
+
+.comanda-cantidad-controles button {
+  width: 46px;
+  height: 46px;
+  border: 1px solid #ead8c3;
+  border-radius: 12px;
+  background: white;
+  color: #29221c;
+  font-size: 24px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.comanda-cantidad-controles button:hover:not(:disabled) {
+  background: #fff0dc;
+  border-color: #ff8200;
+}
+
+.comanda-cantidad-controles button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.comanda-cantidad-controles button:focus-visible {
+  outline: 3px solid #009745;
+  outline-offset: 2px;
+}
+
+.comanda-cantidad-controles span {
+  min-width: 28px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+
+
+/* Editor de cantidades exactas */
+
+.comanda-cantidad-controles .comanda-cantidad-valor {
+  min-width: 65px;
+  height: 46px;
+  padding: 0 10px;
+  border: 2px solid #009745;
+  background: #eaf7ee;
+  color: #08783d;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.comanda-cantidad-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  background: #fff0dc;
+  border: 1px solid #ffca8a;
+  border-radius: 12px;
+}
+
+.comanda-cantidad-editor label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.comanda-cantidad-editor input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 10px;
+  border: 1px solid #d6ad7f;
+  border-radius: 10px;
+  font-size: 20px;
+}
+
+.comanda-cantidad-editor-acciones {
+  display: flex;
+  gap: 10px;
+}
+
+.comanda-cantidad-editor-acciones button {
+  flex: 1;
+  min-height: 46px;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.comanda-cantidad-editor-acciones button:first-child {
+  background: #009745;
+  color: white;
+  border: none;
+}
+
+.comanda-cantidad-editor-acciones button:last-child {
+  background: white;
+  color: #49382a;
+  border: 1px solid #d6ad7f;
+}
+
+
+/* Distribución horizontal de los controles */
+
+.comanda-item-controles {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.comanda-item-controles .comanda-cantidad-controles {
+  margin-top: 0;
+}
+
+.comanda-item-controles .comanda-item-acciones {
+  display: flex;
+  align-items: center;
+  margin-top: 0;
+  gap: 0;
+}
+
+
+@media (max-width: 420px) {
+  .comanda-item-controles {
+    flex-wrap: wrap;
+  }
+}
+
+
+/* =====================================
+   Comanda Express - Venta rápida
+   ===================================== */
+
+.comanda-producto-rapido {
+  cursor: default;
+}
+
+.comanda-producto-botones {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-top: auto;
+}
+
+.comanda-producto-botones button {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 9px 6px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.comanda-boton-normal {
+  background: #eaf7ee;
+  color: #08783d;
+  border: 1px solid #009745;
+}
+
+.comanda-boton-suadero {
+  background: #fff0dc;
+  color: #ff8200;
+  border: 1px solid #ff8200;
+}
+
+/* Transición suave de los botones */
+.comanda-producto-botones button {
+  transition: background-color 0.2s ease,
+              border-color 0.2s ease,
+              transform 0.2s ease;
+}
+
+
+.comanda-boton-normal:hover:not(:disabled) {
+  background-color: #d1f0dc;
+  border-color: #007a38;
+  transform: translateY(-2px);
+}
+
+/* SUADERO: naranja más claro al pasar el puntero */
+.comanda-boton-suadero:hover:not(:disabled) {
+  background-color: #ffffff;
+  border-color: #ffab45;
+  transform: translateY(-2px);
+}
+
+.comanda-boton-agregar:hover:not(:disabled) {
+  background-color: #26b866;
+  border-color: #26b866;
+  transform: translateY(-2px);
+}
+
+/* Efecto al presionar */
+.comanda-producto-botones button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.comanda-boton-agregar {
+  background: #009745;
+  color: white;
+  border: 1px solid #009745;
+}
+
+.comanda-producto-botones button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.comanda-producto-botones button:focus-visible {
+  outline: 3px solid #29221c;
+  outline-offset: 2px;
+}
