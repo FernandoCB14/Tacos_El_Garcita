@@ -56,6 +56,16 @@ class ProductoNuevo(BaseModel):
     carne: Optional[str] = None
 
 
+class ProductoParaLlevar(BaseModel):
+    producto_id: int
+    cantidad: int = Field(gt=0)
+    carne: Optional[str] = None
+
+
+class ActualizarProductoParaLlevar(BaseModel):
+    cantidad: int = Field(gt=0)
+
+
 class ActualizarOrden(BaseModel):
     orden_id: int
     cantidad: Optional[int] = Field(default=None, gt=0)
@@ -101,12 +111,14 @@ def calcular_precio(
 
 
 def leer_venta(con, venta_id: int):
-    """Lee una venta ya guardada, con sus renglones. Devuelve None si no existe."""
+    # """Lee una venta ya guardada, con sus renglones. Devuelve None si no existe."""
     venta = con.execute(
         """
         SELECT
         venta_id,
         num_mesa,
+        tipo_venta,
+        pedido_para_llevar_id,
         abierta_en,
         cerrada_en,
         total_centavos,
@@ -419,13 +431,15 @@ def listar_ventas(fecha: Optional[date] = None):
             filas = con.execute(
                 """
                 SELECT
-                    venta_id,
-                    num_mesa,
-                    cerrada_en,
-                    total_centavos,
-                    metodo_pago,
-                    comision_centavos,
-                    neto_centavos
+                venta_id,
+                num_mesa,
+                tipo_venta,
+                pedido_para_llevar_id,
+                cerrada_en,
+                total_centavos,
+                metodo_pago,
+                comision_centavos,
+                neto_centavos
                 FROM ventas
                 WHERE date(cerrada_en) = ?
                 ORDER BY venta_id DESC;
@@ -480,3 +494,515 @@ def ver_venta(venta_id: int):
         return venta
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=f"Error interno en la base de datos: {e}")
+
+
+# -------------------------------------------------------------------
+# PEDIDOS PARA LLEVAR
+# -------------------------------------------------------------------
+
+@app.post("/para-llevar", status_code=201)
+def crear_pedido_para_llevar():
+
+    try:
+        with conexion_bd() as con:
+
+            cursor = con.execute("""
+                INSERT INTO pedidos_para_llevar (estado)
+                VALUES ('pendiente');
+            """)
+
+            pedido_id = cursor.lastrowid
+
+            pedido = con.execute("""
+                SELECT pedido_id, creado_en, estado
+                FROM pedidos_para_llevar
+                WHERE pedido_id = ?;
+            """, (pedido_id,)).fetchone()
+
+            return dict(pedido)
+
+    except sqlite3.Error as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo crear el pedido: {e}"
+        )
+
+
+@app.get("/para-llevar")
+def listar_pedidos_para_llevar():
+
+    try:
+        with conexion_bd() as con:
+
+            filas = con.execute("""
+                SELECT
+                    p.pedido_id,
+                    p.creado_en,
+                    p.estado,
+                    COALESCE(SUM(d.cantidad), 0) AS cantidad_productos,
+                    COALESCE(
+                        SUM(d.cantidad * d.precio_centavos), 0
+                    ) AS total_centavos
+
+                FROM pedidos_para_llevar p
+
+                LEFT JOIN detalles_para_llevar d
+                    ON p.pedido_id = d.pedido_id
+
+                WHERE p.estado = 'pendiente'
+
+                GROUP BY p.pedido_id, p.creado_en, p.estado
+
+                ORDER BY p.pedido_id DESC;
+            """).fetchall()
+
+            return [dict(fila) for fila in filas]
+
+    except sqlite3.Error as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudieron consultar los pedidos: {e}"
+        )
+
+
+@app.get("/para-llevar/{pedido_id}")
+def ver_pedido_para_llevar(pedido_id: int):
+
+    try:
+        with conexion_bd() as con:
+
+            # 1. Buscar el pedido
+            pedido = con.execute("""
+                SELECT pedido_id, creado_en, estado
+                FROM pedidos_para_llevar
+                WHERE pedido_id = ?;
+            """, (pedido_id,)).fetchone()
+
+            if pedido is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"El pedido #{pedido_id} no existe."
+                )
+
+            # 2. Consultar los productos del pedido
+            filas = con.execute("""
+                SELECT
+                    detalle_id,
+                    pedido_id,
+                    producto_id,
+                    nombre,
+                    tipo_carne,
+                    cantidad,
+                    precio_centavos
+                FROM detalles_para_llevar
+                WHERE pedido_id = ?
+                ORDER BY detalle_id;
+            """, (pedido_id,)).fetchall()
+
+            productos = [dict(fila) for fila in filas]
+
+            # 3. Calcular el total
+            total_centavos = sum(
+                producto["cantidad"] * producto["precio_centavos"]
+                for producto in productos
+            )
+
+            # 4. Devolver el detalle completo
+            return {
+                "pedido_id": pedido["pedido_id"],
+                "creado_en": pedido["creado_en"],
+                "estado": pedido["estado"],
+                "productos": productos,
+                "total_centavos": total_centavos
+            }
+
+    except sqlite3.Error as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo consultar el pedido: {e}"
+        )
+
+
+
+@app.post("/para-llevar/{pedido_id}/productos", status_code=201)
+def agregar_producto_para_llevar(
+    pedido_id: int,
+    datos: ProductoParaLlevar
+):
+    try:
+        with conexion_bd() as con:
+
+            # 1. Verificar que el pedido exista y esté pendiente
+            pedido = con.execute("""
+                SELECT estado
+                FROM pedidos_para_llevar
+                WHERE pedido_id = ?;
+            """, (pedido_id,)).fetchone()
+
+            if pedido is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"El pedido #{pedido_id} no existe."
+                )
+
+            if pedido["estado"] != "pendiente":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Solo se pueden modificar pedidos pendientes."
+                )
+
+            # 2. Buscar el producto en nuestro menú
+            producto = con.execute("""
+                SELECT nombre, precio_centavos, lleva_carne
+                FROM productos
+                WHERE producto_id = ?;
+            """, (datos.producto_id,)).fetchone()
+
+            if producto is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="El producto no existe en el menú."
+                )
+
+            # 3. Calcular el precio con las reglas existentes
+            carne, precio_centavos = calcular_precio(
+                producto["precio_centavos"],
+                producto["lleva_carne"],
+                datos.carne
+            )
+
+            # 4. Guardar el producto en el pedido
+            cursor = con.execute("""
+                INSERT INTO detalles_para_llevar (
+                    pedido_id,
+                    producto_id,
+                    cantidad,
+                    tipo_carne,
+                    nombre,
+                    precio_centavos
+                )
+                VALUES (?, ?, ?, ?, ?, ?);
+            """, (
+                pedido_id,
+                datos.producto_id,
+                datos.cantidad,
+                carne,
+                producto["nombre"],
+                precio_centavos
+            ))
+
+            return {
+                "detalle_id": cursor.lastrowid,
+                "pedido_id": pedido_id,
+                "nombre": producto["nombre"],
+                "cantidad": datos.cantidad,
+                "tipo_carne": carne,
+                "precio_centavos": precio_centavos
+            }
+
+    except sqlite3.Error as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo agregar el producto: {e}"
+        )
+
+
+@app.put("/para-llevar/{pedido_id}/productos/{detalle_id}")
+def actualizar_producto_para_llevar(
+    pedido_id: int,
+    detalle_id: int,
+    datos: ActualizarProductoParaLlevar
+):
+    try:
+        with conexion_bd() as con:
+
+            # Verificar que el pedido exista y esté pendiente
+            pedido = con.execute("""
+                SELECT estado
+                FROM pedidos_para_llevar
+                WHERE pedido_id = ?;
+            """, (pedido_id,)).fetchone()
+
+            if pedido is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"El pedido #{pedido_id} no existe."
+                )
+
+            if pedido["estado"] != "pendiente":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Solo se pueden modificar pedidos pendientes."
+                )
+
+            # Verificar que el producto pertenezca al pedido
+            detalle = con.execute("""
+                SELECT detalle_id
+                FROM detalles_para_llevar
+                WHERE detalle_id = ? AND pedido_id = ?;
+            """, (detalle_id, pedido_id)).fetchone()
+
+            if detalle is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="El producto no existe en este pedido."
+                )
+
+            # Actualizar la cantidad
+            con.execute("""
+                UPDATE detalles_para_llevar
+                SET cantidad = ?
+                WHERE detalle_id = ? AND pedido_id = ?;
+            """, (datos.cantidad, detalle_id, pedido_id))
+
+            return {
+                "status": "success",
+                "pedido_id": pedido_id,
+                "detalle_id": detalle_id,
+                "cantidad": datos.cantidad
+            }
+
+    except sqlite3.Error as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo actualizar el producto: {e}"
+        )
+
+
+@app.delete("/para-llevar/{pedido_id}/productos/{detalle_id}")
+def eliminar_producto_para_llevar(
+    pedido_id: int,
+    detalle_id: int
+):
+    try:
+        with conexion_bd() as con:
+
+            # 1. Comprobar que el pedido exista
+            pedido = con.execute("""
+                SELECT estado
+                FROM pedidos_para_llevar
+                WHERE pedido_id = ?;
+            """, (pedido_id,)).fetchone()
+
+            if pedido is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"El pedido #{pedido_id} no existe."
+                )
+
+            # 2. Solo modificamos pedidos pendientes
+            if pedido["estado"] != "pendiente":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Solo se pueden modificar pedidos pendientes."
+                )
+
+            # 3. Comprobar que el producto pertenezca al pedido
+            detalle = con.execute("""
+                SELECT detalle_id
+                FROM detalles_para_llevar
+                WHERE detalle_id = ? AND pedido_id = ?;
+            """, (detalle_id, pedido_id)).fetchone()
+
+            if detalle is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="El producto no existe en este pedido."
+                )
+
+            # 4. Eliminar únicamente ese producto
+            con.execute("""
+                DELETE FROM detalles_para_llevar
+                WHERE detalle_id = ? AND pedido_id = ?;
+            """, (detalle_id, pedido_id))
+
+            return {
+                "status": "success",
+                "pedido_id": pedido_id,
+                "detalle_id": detalle_id,
+                "message": "Producto eliminado correctamente."
+            }
+
+    except sqlite3.Error as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo eliminar el producto: {e}"
+        )
+
+
+@app.post("/para-llevar/{pedido_id}/cancelar")
+def cancelar_pedido_para_llevar(pedido_id: int):
+    try:
+        with conexion_bd() as con:
+
+            # 1. Buscar el pedido
+            pedido = con.execute("""
+                SELECT estado
+                FROM pedidos_para_llevar
+                WHERE pedido_id = ?;
+            """, (pedido_id,)).fetchone()
+
+            if pedido is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"El pedido #{pedido_id} no existe."
+                )
+
+            # 2. Solo podemos cancelar pedidos pendientes
+            if pedido["estado"] != "pendiente":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Solo se pueden cancelar pedidos pendientes."
+                )
+
+            # 3. Cambiar el estado sin borrar los productos
+            con.execute("""
+                UPDATE pedidos_para_llevar
+                SET estado = 'cancelado'
+                WHERE pedido_id = ?
+                  AND estado = 'pendiente';
+            """, (pedido_id,))
+
+            return {
+                "status": "success",
+                "pedido_id": pedido_id,
+                "estado": "cancelado",
+                "message": "Pedido cancelado correctamente."
+            }
+
+    except sqlite3.Error as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo cancelar el pedido: {e}"
+        )
+
+
+# --------------------------------------------------
+# COBRAR PEDIDO PARA LLEVAR
+# --------------------------------------------------
+
+@app.post("/para-llevar/{pedido_id}/cobrar")
+def cobrar_pedido_para_llevar(
+    pedido_id: int,
+    datos: DatosCobro
+):
+    try:
+        with conexion_bd() as con:
+
+            # Evita que dos cobros escriban al mismo tiempo.
+            con.execute("BEGIN IMMEDIATE;")
+
+            # 1. Comprobar que el pedido esté pendiente
+            pedido = con.execute("""
+                SELECT pedido_id, creado_en, estado
+                FROM pedidos_para_llevar
+                WHERE pedido_id = ?;
+            """, (pedido_id,)).fetchone()
+
+            if pedido is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"El pedido #{pedido_id} no existe."
+                )
+
+            if pedido["estado"] != "pendiente":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Este pedido ya fue cobrado o cancelado."
+                )
+
+            # 2. Calcular el total
+            total_centavos = con.execute("""
+                SELECT SUM(cantidad * precio_centavos) AS total
+                FROM detalles_para_llevar
+                WHERE pedido_id = ?;
+            """, (pedido_id,)).fetchone()["total"]
+
+            if total_centavos is None or total_centavos <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El pedido no tiene productos para cobrar."
+                )
+
+            # 3. Calcular comisiones
+            (
+                comision_porcentaje,
+                iva_comision_porcentaje,
+                comision_centavos,
+                neto_centavos
+            ) = calcular_comision(
+                total_centavos,
+                datos.metodo_pago,
+                con=con
+            )
+
+            # 4. Registrar la venta
+            cursor = con.execute("""
+                INSERT INTO ventas (
+                    num_mesa,
+                    abierta_en,
+                    total_centavos,
+                    metodo_pago,
+                    comision_porcentaje,
+                    iva_comision_porcentaje,
+                    comision_centavos,
+                    neto_centavos,
+                    tipo_venta,
+                    pedido_para_llevar_id
+                )
+                VALUES (
+                    NULL, ?, ?, ?, ?, ?, ?, ?,
+                    'para_llevar', ?
+                );
+            """, (
+                pedido["creado_en"],
+                total_centavos,
+                datos.metodo_pago,
+                str(comision_porcentaje),
+                str(iva_comision_porcentaje),
+                comision_centavos,
+                neto_centavos,
+                pedido_id
+            ))
+
+            venta_id = cursor.lastrowid
+
+            # 5. Guardar el detalle de la venta
+            con.execute("""
+                INSERT INTO detalles_ventas (
+                    venta_id,
+                    producto_id,
+                    nombre,
+                    tipo_carne,
+                    cantidad,
+                    precio_centavos
+                )
+                SELECT
+                    ?, producto_id, nombre,
+                    tipo_carne, cantidad, precio_centavos
+                FROM detalles_para_llevar
+                WHERE pedido_id = ?;
+            """, (venta_id, pedido_id))
+
+            # 6. Marcar pedido como cobrado
+            con.execute("""
+                UPDATE pedidos_para_llevar
+                SET estado = 'cobrado'
+                WHERE pedido_id = ?
+                  AND estado = 'pendiente';
+            """, (pedido_id,))
+
+            # 7. Recuperar la venta registrada
+            venta = leer_venta(con, venta_id)
+
+            return {
+                **venta,
+                "tipo_venta": "para_llevar",
+                "pedido_para_llevar_id": pedido_id
+            }
+
+    except sqlite3.Error as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo cobrar el pedido: {e}"
+        )

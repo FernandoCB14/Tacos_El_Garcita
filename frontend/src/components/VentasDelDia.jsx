@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { obtenerVentas, obtenerVenta } from "../api";
 import { formatearDinero } from "../formato";
 import TicketModal from "./TicketModal";
+import { Banknote, CreditCard, ReceiptText, Calendar1 } from "lucide-react";
 
 // Fecha de hoy como "AAAA-MM-DD", con la hora LOCAL.
 // (new Date().toISOString() usaría la hora UTC: en Querétaro, desde las 6 pm
@@ -130,13 +131,20 @@ export function ListaVentas({ datos, onVerTicket }) {
                 }`}
                 aria-hidden="true"
               >
-                {v.metodo_pago === "tarjeta" ? "💳" : "💵"}
+                {v.metodo_pago === "tarjeta" ? (
+                  <CreditCard size={24} strokeWidth={2} />
+                ) : (
+                  <Banknote size={24} strokeWidth={2} />
+                )}
               </div>
 
               <div className="venta-informacion">
                 <strong>
                   Venta #{String(v.venta_id).padStart(5, "0")}
-                  {" · "}Mesa {v.num_mesa}
+                  {" · "}
+                  {v.tipo_venta === "para_llevar"
+                    ? `Para llevar #${v.pedido_para_llevar_id}`
+                    : `Mesa ${v.num_mesa}`}
                 </strong>
 
                 <span>
@@ -168,7 +176,7 @@ export function ListaVentas({ datos, onVerTicket }) {
                 aria-label={`Ver ticket de venta ${v.venta_id}`}
                 title="Ver o reimprimir ticket"
               >
-                🧾
+                <ReceiptText size={24} strokeWidth={2} />
               </button>
             </div>
           ))
@@ -237,9 +245,13 @@ export default function VentasDelDia() {
         </div>
 
         <label className="ventas-fecha">
-          <span>📅</span>
+          <span>
+            {" "}
+            <Calendar1 size={30} strokeWidth={2} />
+          </span>
 
           <input
+            className="fecha-pos"
             type="date"
             value={fecha}
             max={hoyLocal()}

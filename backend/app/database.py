@@ -36,6 +36,7 @@ def conexion_bd():
 
 def inicializar_bd():
     with conexion_bd() as con:
+
         con.execute("""
             CREATE TABLE IF NOT EXISTS ordenes(
                 num_mesa INTEGER PRIMARY KEY,
@@ -48,9 +49,29 @@ def inicializar_bd():
                 categoria TEXT,
                 nombre TEXT,
                 precio_centavos INTEGER,
-                lleva_carne INTEGER
+                lleva_carne INTEGER,
+                precio_variable INTEGER NOT NULL DEFAULT 0
             );
         """)
+
+
+        # Verificar si la columna precio_variable ya existe
+        columnas = con.execute(
+            "PRAGMA table_info(productos)"
+        ).fetchall()
+
+        nombres_columnas = [columna[1] for columna in columnas]
+
+        if "precio_variable" not in nombres_columnas:
+            con.execute("""
+                ALTER TABLE productos
+                ADD COLUMN precio_variable INTEGER NOT NULL DEFAULT 0
+            """)
+
+            print("Columna precio_variable agregada a productos")
+
+
+
         con.execute("""
             CREATE TABLE IF NOT EXISTS detalles_ordenes(
                 orden_id INTEGER PRIMARY KEY,
@@ -64,6 +85,7 @@ def inicializar_bd():
                 FOREIGN KEY (producto_id) REFERENCES productos(producto_id)
             );
         """)
+
         con.execute("""
             CREATE TABLE IF NOT EXISTS ventas(
                 venta_id INTEGER PRIMARY KEY,
@@ -91,6 +113,27 @@ def inicializar_bd():
                     )
             );
         """)
+
+
+        columnas_ventas = {
+            fila["name"]
+            for fila in con.execute("PRAGMA table_info(ventas);")
+        }
+
+        if "tipo_venta" not in columnas_ventas:
+            con.execute("""
+                ALTER TABLE ventas
+                ADD COLUMN tipo_venta TEXT NOT NULL DEFAULT 'mesa'
+                CHECK (tipo_venta IN ('mesa', 'para_llevar'));
+            """)
+
+        if "pedido_para_llevar_id" not in columnas_ventas:
+            con.execute("""
+                ALTER TABLE ventas
+                ADD COLUMN pedido_para_llevar_id INTEGER;
+            """)
+
+
         con.execute("""
             CREATE TABLE IF NOT EXISTS detalles_ventas(
                 detalle_id       INTEGER PRIMARY KEY,
@@ -121,6 +164,51 @@ def inicializar_bd():
             ],
         )
 
+        # Tabla de pedidos para llevar
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS pedidos_para_llevar (
+                pedido_id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                creado_en TEXT NOT NULL
+                    DEFAULT (datetime('now','localtime')),
+
+                estado TEXT NOT NULL DEFAULT 'pendiente'
+                    CHECK (
+                        estado IN (
+                            'pendiente',
+                            'cobrado',
+                            'cancelado'
+                        )
+                    )
+            );
+        """)
+
+
+        # Productos de pedidos para llevar
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS detalles_para_llevar (
+                detalle_id INTEGER PRIMARY KEY,
+
+                pedido_id INTEGER NOT NULL,
+                producto_id INTEGER NOT NULL,
+
+                cantidad INTEGER NOT NULL
+                    CHECK (cantidad > 0),
+
+                tipo_carne TEXT,
+                nombre TEXT NOT NULL,
+
+                precio_centavos INTEGER NOT NULL
+                    CHECK (precio_centavos >= 0),
+
+                FOREIGN KEY (pedido_id)
+                    REFERENCES pedidos_para_llevar(pedido_id),
+
+                FOREIGN KEY (producto_id)
+                    REFERENCES productos(producto_id)
+            );
+        """)
+
 
 def cargar_menu():
     """Llena el catálogo la primera vez. Si ya hay productos, no hace nada."""
@@ -144,7 +232,7 @@ def cargar_menu():
             ("con_queso", "Tortas", 7000, 1),
             ("con_queso", "Quesadillas", 2000, 0),
             ("frios", "Refresco 455ml", 3500, 0),
-            ("frios", "Refresco 600ml", 3700, 0),
+            ("frios", "Refresco 600ml", 3500, 0),
             ("frios", "Boing", 3500, 0),
             ("frios", "Aguas", 3500, 0),
             ("frios", "Jericallas", 3500, 0),

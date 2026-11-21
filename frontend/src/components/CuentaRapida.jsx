@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { obtenerTicket, cobrarMesa } from "../api";
 import { formatearDinero } from "../formato";
+import { Banknote, CreditCard, Receipt, X } from "lucide-react";
+import { confirmarCobro } from "../utils/alertas";
 
 export default function CuentaRapida({ numMesa, onCerrar, onCobroExitoso }) {
   const [orden, setOrden] = useState(null);
@@ -57,11 +59,11 @@ export default function CuentaRapida({ numMesa, onCerrar, onCobroExitoso }) {
     const nombreMetodo =
       metodoPago === "efectivo" ? "Efectivo" : "Mercado Pago";
 
-    const confirmado = window.confirm(
-      `¿Confirmas el cobro de ${formatearDinero(
-        orden.total_centavos,
-      )} de la MESA ${numMesa}?\n\nMétodo: ${nombreMetodo}`,
-    );
+    const confirmado = await confirmarCobro({
+      mesa: numMesa,
+      total: formatearDinero(orden.total_centavos),
+      metodo: nombreMetodo,
+    });
 
     if (!confirmado) {
       cobroEnProceso.current = false;
@@ -164,7 +166,8 @@ export default function CuentaRapida({ numMesa, onCerrar, onCobroExitoso }) {
                     className={metodoPago === "efectivo" ? "metodo-activo" : ""}
                     onClick={() => setMetodoPago("efectivo")}
                   >
-                    💵 Efectivo
+                    <Banknote size={20} strokeWidth={2} />
+                    <span>Efectivo</span>
                   </button>
 
                   <button
@@ -172,7 +175,8 @@ export default function CuentaRapida({ numMesa, onCerrar, onCobroExitoso }) {
                     className={metodoPago === "tarjeta" ? "metodo-activo" : ""}
                     onClick={() => setMetodoPago("tarjeta")}
                   >
-                    💳 Mercado Pago
+                    <CreditCard size={20} strokeWidth={2} />
+                    <span>Mercado Pago</span>
                   </button>
                 </div>
 

@@ -1,0 +1,236 @@
+
+/* =====================================
+   TACOS EL GARCITA
+   Ventanas de confirmación
+   ===================================== */
+
+/* Ventana principal */
+.alerta-pos {
+  width: min(440px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 28px;
+  border: 1px solid #ead8c3;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+/* Título */
+.alerta-pos-titulo {
+  color: #29221c;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+/* Mensaje */
+.alerta-pos-mensaje {
+  color: #807266;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Icono */
+.alerta-pos-icono.swal2-icon {
+  border-color: #ff8200;
+  color: #ff8200;
+}
+
+/* Contenedor de botones */
+.alerta-pos-acciones {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-top: 24px;
+}
+
+/* Estilos compartidos */
+.alerta-pos-confirmar,
+.alerta-pos-cancelar {
+  flex: 1;
+  min-height: 52px;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+
+  transition:
+    background-color 0.2s ease,
+    transform 0.15s ease;
+}
+
+/* Botón verde */
+.alerta-pos-confirmar {
+  background: #009745;
+  color: #ffffff;
+  border: 1px solid #009745;
+}
+
+.alerta-pos-confirmar:hover {
+  background: #26b866;
+}
+
+/* Botón cancelar */
+.alerta-pos-cancelar {
+  background: #ffffff;
+  color: #49382a;
+  border: 1px solid #ead8c3;
+}
+
+.alerta-pos-cancelar:hover {
+  background: #fff0dc;
+}
+
+/* Efecto al pulsar */
+.alerta-pos-confirmar:active,
+.alerta-pos-cancelar:active {
+  transform: scale(0.97);
+}
+
+/* Navegación con teclado */
+.alerta-pos-confirmar:focus-visible,
+.alerta-pos-cancelar:focus-visible {
+  outline: 3px solid #ff8200;
+  outline-offset: 3px;
+}
+
+@media (max-width: 420px) {
+  .alerta-pos {
+    padding: 20px;
+  }
+
+  .alerta-pos-acciones {
+    flex-direction: column;
+  }
+}
+
+/* Icono rojo para mensajes de error */
+.alerta-pos-icono.swal2-error {
+  border-color: #d9534f;
+  color: #d9534f;
+}
+
+.alerta-pos-icono.swal2-error .swal2-x-mark-line-left,
+.alerta-pos-icono.swal2-error .swal2-x-mark-line-right {
+  background-color: #d9534f;
+}
+
+/* Confirmación de cobro personalizada */
+
+
+/* =====================================
+   Confirmación de cobro - Tacos el Garcita
+   ===================================== */
+
+.cobro-nuevo.swal2-popup {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  width: min(460px, calc(100vw - 32px));
+}
+
+.cobro-nuevo-html.swal2-html-container {
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+/* Encabezado naranja */
+.cobro-nuevo-encabezado {
+  background: linear-gradient(
+    115deg,
+    #e65a00 0%,
+    #ff8200 65%,
+    #ffae00 100%
+  );
+  padding: 20px 28px;
+  text-align: left;
+}
+
+.cobro-nuevo-marca {
+  color: white;
+  font-size: 18px;
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+}
+
+/* Contenido principal */
+.cobro-nuevo-cuerpo {
+  padding: 24px 28px 8px;
+  text-align: center;
+}
+
+.cobro-nuevo-icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: #ddf5e8;
+  color: #009745;
+}
+
+.cobro-nuevo-cuerpo h2 {
+  margin: 0 0 10px;
+  font-size: 25px;
+  color: #29221c;
+}
+
+.cobro-nuevo-cuerpo p {
+  margin: 0;
+  font-size: 15px;
+  color: #49382a;
+}
+
+/* Resumen del pago */
+.cobro-nuevo-resumen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 22px;
+  padding: 22px 16px;
+  background: #fff1df;
+  border-radius: 16px;
+}
+
+.cobro-nuevo-resumen > span {
+  font-size: 14px;
+  color: #795548;
+}
+
+.cobro-nuevo-resumen > strong {
+  font-size: 38px;
+  color: #009745;
+  line-height: 1.2;
+}
+
+.cobro-nuevo-metodo {
+  border-top: 1px solid #ead8c3;
+  padding-top: 12px;
+  font-size: 14px;
+  color: #49382a;
+}
+
+/* Botones */
+.cobro-nuevo .alerta-pos-acciones {
+  box-sizing: border-box;
+  padding: 12px 28px 24px;
+  margin: 0;
+}
+
+@media (max-width: 420px) {
+  .cobro-nuevo-cuerpo {
+    padding: 20px 16px 8px;
+  }
+
+  .cobro-nuevo .alerta-pos-acciones {
+    padding: 12px 16px 20px;
+  }
+
+  .cobro-nuevo-resumen > strong {
+    font-size: 32px;
+  }
+}

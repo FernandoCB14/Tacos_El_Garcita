@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import CuentaRapida from "./CuentaRapida";
 import TicketModal from "./TicketModal";
 import { abrirMesa } from "../api";
+import { NotepadText } from "lucide-react";
+import { mostrarError } from "../utils/alertas";
 
 export default function Croquis({
   mesaSeleccionada,
@@ -19,7 +21,6 @@ export default function Croquis({
   const handleEntrarMesa = async (num, estaOcupada) => {
     // Evitamos abrir dos mesas al mismo tiempo.
     if (mesaAbriendo !== null) return;
-
     // Si ya está ocupada, solo mostramos su comanda.
     if (estaOcupada) {
       setMesaSeleccionada(num);
@@ -28,19 +29,15 @@ export default function Croquis({
 
     try {
       setMesaAbriendo(num);
-
       // Abrimos la mesa en la base de datos.
       await abrirMesa(num);
-
       // Actualizamos el estado del croquis.
       await onActualizarMesas();
-
       // Entramos a la comanda cuando la apertura terminó.
       setMesaSeleccionada(num);
     } catch (err) {
       console.error("Error al abrir mesa:", err);
-
-      alert(`No se pudo abrir la Mesa ${num}: ${err.message}`);
+      await mostrarError(`No se pudo abrir la Mesa ${num}: ${err.message}`);
     } finally {
       setMesaAbriendo(null);
     }
@@ -88,7 +85,11 @@ export default function Croquis({
                   <span className="mesa-card-titulo">Mesa {num}</span>
 
                   <span className="mesa-card-icono" aria-hidden="true">
-                    {estaOcupada ? "📋" : "✓"}
+                    {estaOcupada ? (
+                      <NotepadText size={30} strokeWidth={2} />
+                    ) : (
+                      "✓"
+                    )}
                   </span>
                 </div>
 

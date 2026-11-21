@@ -27,7 +27,11 @@ export function Ticket({ venta }) {
       <p className="centrado">{NEGOCIO.direccion}</p>
       <hr />
       <p>Folio: {folio}</p>
-      <p>Mesa: {venta.num_mesa}</p>
+      {venta.tipo_venta === "para_llevar" ? (
+        <p>Para llevar · Pedido #{venta.pedido_para_llevar_id}</p>
+      ) : (
+        <p>Mesa: {venta.num_mesa}</p>
+      )}
       <p>Fecha: {formatearFecha(venta.cerrada_en)}</p>
       <hr />
       {venta.productos.map((p) => (
@@ -46,7 +50,11 @@ export function Ticket({ venta }) {
       </div>
       <hr />
       <p className="centrado">{NEGOCIO.despedida}</p>
-      {venta.reimpresion && <p className="centrado"><strong>*** REIMPRESIÓN ***</strong></p>}
+      {venta.reimpresion && (
+        <p className="centrado">
+          <strong>*** REIMPRESIÓN ***</strong>
+        </p>
+      )}
     </div>
   );
 }
@@ -70,7 +78,7 @@ export default function TicketModal({ venta, onCerrar }) {
         <div className="ticket-impresion">
           <Ticket venta={venta} />
         </div>,
-        document.body
+        document.body,
       )}
     </>
   );

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Croquis from "./components/Croquis";
 import DetalleMesa from "./components/DetalleMesa";
 import VentasDelDia from "./components/VentasDelDia";
+import ParaLlevar from "./components/ParaLlevar";
 import { obtenerEstadoMesas } from "./api";
 import AppHeader from "./components/AppHeader";
 
@@ -37,13 +38,12 @@ function App() {
     setVista("detalle");
   };
 
-  // const handVolverAlcroquis = () => {
-  //   setMesaSeleccionada(null);
-  //   setVista("croquis");
-  // };
-
   const navegarA = (nuevaVista) => {
-    setMesaSeleccionada(null);
+    if (nuevaVista === "detalle" && mesaSeleccionada == null) {
+      setMesaParaCobrar(null);
+      setVista("croquis");
+      return;
+    }
     setMesaParaCobrar(null);
     setVista(nuevaVista);
   };
@@ -67,31 +67,18 @@ function App() {
       ) : (
         /* PANTALLA 2: DETALLE DE LA COMANDA */
         <div>
-          {/* <button
-            onClick={handVolverAlcroquis}
-            style={{
-              marginBottom: "20px",
-              padding: "10px 18px",
-              fontSize: "15px",
-              cursor: "pointer",
-              backgroundColor: "#6c757d",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontWeight: "bold"
-            }}
-          >
-            ⬅️ Regresar al Croquis
-          </button> */}
-
           {vista === "detalle" && (
             <DetalleMesa
               mesaSeleccionada={mesaSeleccionada}
-              onMesaCerrada={() => navegarA("croquis")}
+              onMesaCerrada={() => {
+                setMesaSeleccionada(null);
+                navegarA("croquis");
+              }}
             />
           )}
 
           {vista === "ventas" && <VentasDelDia />}
+          {vista === "para-llevar" && <ParaLlevar />}
         </div>
       )}
     </div>

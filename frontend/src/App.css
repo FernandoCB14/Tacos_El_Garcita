@@ -1,8 +1,16 @@
 
+/* =====================================
+   IMPORTACIÓN DE ESTILOS
+   ===================================== */
+
 @import "./styles/mesas.css";
 @import "./styles/cuenta-rapida.css";
 @import "./styles/ventas.css";
 
+
+/* =====================================
+   ENCABEZADO PRINCIPAL
+   ===================================== */
 
 .app-header {
   width: 100%;
@@ -20,6 +28,11 @@
   flex-wrap: wrap;
 }
 
+
+/* =====================================
+   LOGOTIPO Y NOMBRE
+   ===================================== */
+
 .app-header-marca {
   display: flex;
   align-items: center;
@@ -28,8 +41,8 @@
 }
 
 .app-header-icono {
-  width: 88px;
-  height: 88px;
+  width: 130px;
+  height: 130px;
   padding: 0;
   flex-shrink: 0;
   overflow: hidden;
@@ -46,15 +59,20 @@
 
 .app-header-marca h1 {
   margin: 0;
-  font-size: 18px;
+  font-size: 30px;
   color: white;
 }
 
 .app-header-marca p {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 20px;
   color: white;
 }
+
+
+/* =====================================
+   NAVEGACIÓN HORIZONTAL
+   ===================================== */
 
 .app-navegacion {
   display: flex;
@@ -64,33 +82,89 @@
 }
 
 .app-navegacion button {
-  min-height: 50px;
-  min-width: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+
+  min-width: 60px;
+  min-height: 80px;
   padding: 10px 16px;
-  background: #fff0db;
-  color: #543000;
-  border: 2px solid transparent;
-  border-radius: 12px;
-  font-size: 15px;
+
+  background: transparent;
+  color: white;
+  border: 1px solid transparent;
+  border-radius: 10px;
+
+  font-size: 18px;
   font-weight: 700;
+  white-space: nowrap;
+
   cursor: pointer;
   touch-action: manipulation;
+
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
+/* Efecto al pasar el puntero */
+.app-navegacion button:hover:not(:disabled):not(.nav-activo) {
+  background: rgba(255, 255, 255, 0.17);
+}
+
+/* Sección activa */
 .app-navegacion button.nav-activo {
-  background: white;
-  border-color: #009745;
-  color: #24211e;
+  background: #fff0db;
+  border-color: #fff0db;
+  color: #29221c;
 }
 
+.app-navegacion button.nav-activo svg {
+  color: #009745;
+}
+
+/* Opciones desactivadas */
 .app-navegacion button:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-/* ====================================
-   Estructura general de la aplicación
-   ==================================== */
+/* Navegación con teclado */
+.app-navegacion button:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
+
+/* =====================================
+   PANTALLAS PEQUEÑAS
+   ===================================== */
+
+@media (max-width: 700px) {
+  .app-header {
+    gap: 12px;
+    padding: 10px;
+  }
+
+  .app-header-texto {
+    display: none;
+  }
+
+  .app-navegacion {
+    justify-content: flex-start;
+  }
+
+  .app-navegacion button {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}
+
+
+/* =====================================
+   ESTRUCTURA GENERAL
+   ===================================== */
 
 .app-container {
   width: 100%;
@@ -99,6 +173,3 @@
   box-sizing: border-box;
   font-family: Arial, sans-serif;
 }
-
-
-

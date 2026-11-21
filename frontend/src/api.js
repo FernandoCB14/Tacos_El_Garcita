@@ -85,4 +85,85 @@ export const actualizarProducto = ({ orden_id, cantidad, carne }) =>
   );
 
 export const eliminarProducto = (orden_id) =>
-  pedir(`/ordenes/eliminar-producto/${orden_id}`, { method: "DELETE" }, "Error al eliminar el producto");
+  pedir(`/ordenes/eliminar-producto/${orden_id}`,
+    { method: "DELETE" },
+    "Error al eliminar el producto"
+  );
+
+
+export function obtenerPedidosParaLlevar() {
+  return pedir(
+    "/para-llevar",
+    {},
+    "No se pudieron cargar los pedidos para llevar."
+  );
+}
+
+export function crearPedidoParaLlevar() {
+  return pedir(
+    "/para-llevar",
+    { method: "POST" },
+    "No se pudo crear el pedido para llevar."
+  );
+}
+
+export function obtenerPedidoParaLlevar(pedidoId) {
+  return pedir(
+    `/para-llevar/${pedidoId}`,
+    {},
+    "No se pudo cargar el pedido para llevar."
+  );
+}
+
+
+export function agregarProductoParaLlevar(pedidoId, producto) {
+  return pedir(
+    `/para-llevar/${pedidoId}/productos`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(producto),
+    },
+    "No se pudo agregar el producto al pedido."
+  );
+}
+
+export function actualizarProductoParaLlevar(pedidoId, detalleId, cantidad) {
+  return pedir(
+    `/para-llevar/${pedidoId}/productos/${detalleId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ cantidad }),
+    },
+    "No se pudo actualizar la cantidad."
+  );
+}
+
+export function eliminarProductoParaLlevar(pedidoId, detalleId) {
+  return pedir(
+    `/para-llevar/${pedidoId}/productos/${detalleId}`,
+    {
+      method: "DELETE",
+    },
+    "No se pudo eliminar el producto del pedido."
+  );
+}
+
+export function cobrarPedidoParaLlevar(pedidoId, metodoPago) {
+  return pedir(
+    `/para-llevar/${pedidoId}/cobrar`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        metodo_pago: metodoPago,
+      }),
+    },
+    "No se pudo cobrar el pedido para llevar."
+  );
+}

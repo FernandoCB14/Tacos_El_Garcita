@@ -283,9 +283,11 @@
 
 .ventas-fecha {
   display: inline-flex;
+  align-items: center;
   flex: 0 0 auto;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 12px;
   width: auto;
   max-width: 100%;
   margin: 0;
@@ -297,6 +299,19 @@
 
 .ventas-fecha span {
   font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ventas-fecha > span svg {
+  display: block;
+}
+
+.ventas-fecha .fecha-pos {
+  margin: 0;
+  min-height: 52px;
+  box-sizing: border-box;
 }
 
 .ventas-fecha input {
@@ -314,6 +329,25 @@
 .ventas-fecha input:focus-visible {
   outline: 2px solid #ff8200;
   outline-offset: 3px;
+}
+
+.fecha-pos {
+  min-height: 60px;
+  padding: 12px 16px;
+  font-size: 18px;
+  font-weight: 600;
+  border: 1px solid #e5cdb8;
+  border-radius: 12px;
+  background: white;
+  color: #29221c;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.fecha-pos::-webkit-calendar-picker-indicator {
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
 }
 
 @media (max-width: 650px) {

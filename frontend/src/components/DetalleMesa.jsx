@@ -1,7 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { formatearDinero } from "../formato";
 import TicketModal from "./TicketModal";
+import { Banknote, CreditCard, ReceiptText } from "lucide-react";
 import "../styles/detalle-mesa.css";
+
+import {
+  confirmarAccion,
+  mostrarError,
+  confirmarCobro,
+} from "../utils/alertas";
+
 import {
   obtenerTicket,
   obtenerMenu,
@@ -13,16 +21,8 @@ import {
   abrirMesa,
 } from "../api";
 
-// Carnes disponibles para los productos que llevan carne.
-const CARNES = [
-  { valor: "suadero", etiqueta: "Suadero" },
-  { valor: "pastor", etiqueta: "Pastor" },
-  { valor: "bistec", etiqueta: "Bistec" },
-  { valor: "chorizo", etiqueta: "Chorizo" },
-  { valor: "campechanos", etiqueta: "Campechanos" },
-];
-
 // Cómo se muestra cada categoría de la base de datos en pantalla.
+
 const ETIQUETAS_CATEGORIA = {
   tacos: "Tacos",
   con_queso: "Con queso",
@@ -35,47 +35,41 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
   const [menu, setMenu] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
-
   const [categoria, setCategoria] = useState(null); // null = "la primera que haya"
-  const [productoId, setProductoId] = useState(null);
-  const [carne, setCarne] = useState("suadero");
-  const [cantidad, setCantidad] = useState(1);
-
-  const [productoAeditar, setProductoAeditar] = useState(null);
   const [productoAgregando, setProductoAgregando] = useState(false);
   const [ventaCobrada, setVentaCobrada] = useState(null); // la venta que se muestra el ticket
   const cobroEnProceso = useRef(false);
   const [metodoPago, setMetodoPago] = useState("efectivo");
 
   // ---- Estado derivado: se CALCULA en cada render, no se guarda ----
+
   // [...new Set(...)] quita las categorías repetidas y las vuelve a convertir en lista.
+
   const categorias = [...new Set(menu.map((p) => p.categoria))];
   const categoriaActiva = categoria ?? categorias[0];
   const productosDeCategoria = menu.filter(
     (p) => p.categoria === categoriaActiva,
   );
-  const productoElegido = productosDeCategoria.find(
-    (p) => p.producto_id === productoId,
-  );
-
   const [productoActualizando, setProductoActualizando] = useState(null);
   const [cantidadEditando, setCantidadEditando] = useState(null);
   const [cantidadTemporal, setCantidadTemporal] = useState("");
-  const productoDelCatalogo = productoAeditar
-    ? menu.find((p) => p.producto_id === productoAeditar.producto_id)
-    : null;
-  const editaLlevaCarne = productoDelCatalogo?.lleva_carne === 1;
 
   // -------------------------------------------------------------------
+
   // CARGA DE DATOS
+
   // -------------------------------------------------------------------
+
   const cargarTicket = async () => {
     try {
       const data = await obtenerTicket(mesaSeleccionada);
+
       setOrden(data);
+
       setError(null);
     } catch (err) {
       console.error("Error al cargar ticket:", err);
+
       setError(err.message || "No se pudo conectar con el servidor");
     } finally {
       setCargando(false);
@@ -87,61 +81,46 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
   }, [mesaSeleccionada]);
 
   // El menú se pide UNA vez ([] = solo al montar el componente).
+
   // El callback de useEffect no puede ser async directamente, por eso la función interna.
+
   useEffect(() => {
     const cargarMenu = async () => {
       try {
         setMenu(await obtenerMenu());
       } catch (err) {
         console.error("Error al cargar el menú:", err);
+
         setError(err.message || "No se pudo cargar el menú");
       }
     };
+
     cargarMenu();
   }, []);
 
   // -------------------------------------------------------------------
+
   // ACCIONES
+
   // -------------------------------------------------------------------
+
   const handleAbrirMesa = async () => {
     if (orden?.abierta) {
       alert("⚠️ Esta mesa ya está abierta.");
+
       return;
     }
+
     setCargando(true);
+
     try {
       await abrirMesa(mesaSeleccionada);
+
       await cargarTicket();
     } catch (err) {
       console.error("Error al abrir mesa:", err);
+
       alert(`No se pudo abrir la mesa: ${err.message}`);
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!productoElegido) {
-      alert("⚠️ Elige un producto del menú.");
-      return;
-    }
-
-    setCargando(true);
-    try {
-      await agregarProducto({
-        num_mesa: mesaSeleccionada,
-        producto_id: productoElegido.producto_id,
-        cantidad,
-        // Solo mandamos carne si el producto la lleva
-        carne: productoElegido.lleva_carne ? carne : null,
-      });
-      setCantidad(1);
-      await cargarTicket();
-    } catch (err) {
-      console.error(err);
-      alert(`No se pudo agregar: ${err.message}`);
     } finally {
       setCargando(false);
     }
@@ -153,22 +132,28 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
     if (bloqueoAgregarRef.current) return;
 
     bloqueoAgregarRef.current = true;
+
     setProductoAgregando(true);
 
     try {
       await agregarProducto({
         num_mesa: mesaSeleccionada,
+
         producto_id: producto.producto_id,
+
         cantidad: 1,
+
         carne: producto.lleva_carne === 1 ? tipoCarne : null,
       });
 
       await cargarTicket();
     } catch (error) {
       console.error("Error al agregar producto:", error);
+
       alert(error.message || "No se pudo agregar el producto.");
     } finally {
       bloqueoAgregarRef.current = false;
+
       setProductoAgregando(false);
     }
   };
@@ -176,9 +161,11 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
   const handleEliminarProducto = async (orden_id) => {
     try {
       await eliminarProducto(orden_id);
+
       await cargarTicket();
     } catch (err) {
       console.error(err);
+
       alert(`No se pudo eliminar: ${err.message}`);
     }
   };
@@ -187,29 +174,28 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
     if (!num_mesa || !orden?.abierta) return;
 
     // Solo permitimos cerrar sin cobrar si no hay productos.
+
     if (orden.productos.length > 0) {
       alert(
         "Esta mesa tiene productos registrados. " +
           "Debes cobrarla antes de cerrarla.",
       );
+
       return;
     }
 
-    const confirmado = window.confirm(
-      `¿Deseas cerrar la Mesa ${num_mesa}?\n\n` +
-        "La mesa está vacía y no se registrará ninguna venta.",
-    );
-
+    const confirmado = await confirmarAccion({
+      titulo: `Cerrar Mesa ${num_mesa}`,
+      mensaje: "La mesa está vacía y no se registrará ninguna venta.",
+      textoConfirmar: "Sí, cerrar mesa",
+    });
     if (!confirmado) return;
-
     try {
       setCargando(true);
-
       await cerrarMesa(num_mesa);
       onMesaCerrada?.();
     } catch (err) {
-      console.error("Error al cerrar mesa:", err);
-      alert(`No se pudo cerrar la mesa: ${err.message}`);
+      await mostrarError(`No se pudo cerrar la mesa: ${err.message}`);
     } finally {
       setCargando(false);
     }
@@ -227,24 +213,22 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
     }
 
     // Bloqueamos inmediatamente los clics repetidos.
+
     cobroEnProceso.current = true;
 
     try {
       const nombreMetodo =
         metodoPago === "efectivo" ? "Efectivo" : "Mercado Pago";
 
-      const confirmado = window.confirm(
-        `¿Confirmas el cobro de ${formatearDinero(
-          orden.total_centavos,
-        )} de la MESA ${orden.num_mesa}?\n\nMétodo: ${nombreMetodo}`,
-      );
+      const confirmado = await confirmarCobro({
+        mesa: orden.num_mesa,
+        total: formatearDinero(orden.total_centavos),
+        metodo: nombreMetodo,
+      });
 
       if (!confirmado) return;
-
       setCargando(true);
-
       const venta = await cobrarMesa(orden.num_mesa, metodoPago);
-
       setVentaCobrada(venta);
       await cargarTicket();
     } catch (err) {
@@ -257,6 +241,7 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
       );
     } finally {
       cobroEnProceso.current = false;
+
       setCargando(false);
     }
   };
@@ -267,6 +252,7 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
     const nuevaCantidad = producto.cantidad + cambio;
 
     // Nunca permitimos cantidades menores que 1.
+
     if (nuevaCantidad < 1) return;
 
     try {
@@ -274,13 +260,16 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
 
       await actualizarProducto({
         orden_id: producto.orden_id,
+
         cantidad: nuevaCantidad,
+
         carne: producto.tipo_carne ?? null,
       });
 
       await cargarTicket();
     } catch (err) {
       console.error("Error al actualizar cantidad:", err);
+
       alert(`No se pudo actualizar la cantidad: ${err.message}`);
     } finally {
       setProductoActualizando(null);
@@ -291,12 +280,14 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
     const nuevaCantidad = Number(cantidadTemporal);
 
     // Validamos que sea un número entero positivo.
+
     if (
       !Number.isSafeInteger(nuevaCantidad) ||
       nuevaCantidad < 1 ||
       cantidadTemporal.trim() === ""
     ) {
       alert("Introduce una cantidad válida mayor que cero.");
+
       return;
     }
 
@@ -307,40 +298,28 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
 
       await actualizarProducto({
         orden_id: producto.orden_id,
+
         cantidad: nuevaCantidad,
+
         carne: producto.tipo_carne ?? null,
       });
 
       await cargarTicket();
 
       setCantidadEditando(null);
+
       setCantidadTemporal("");
     } catch (err) {
       console.error("Error al guardar cantidad:", err);
+
       alert(`No se pudo actualizar la cantidad: ${err.message}`);
     } finally {
       setProductoActualizando(null);
     }
   };
 
-  const handleGuardarEdicion = async () => {
-    if (!productoAeditar) return;
-    try {
-      await actualizarProducto({
-        orden_id: productoAeditar.orden_id,
-        cantidad: productoAeditar.cantidad,
-        carne: editaLlevaCarne ? productoAeditar.tipo_carne : null,
-      });
-      setProductoAeditar(null);
-      await cargarTicket();
-    } catch (err) {
-      console.error("Error al editar tu orden:", err);
-      alert(`No se pudo actualizar: ${err.message}`);
-    }
-  };
-
   const formularioAgregar = (
-    <form onSubmit={handleSubmit} style={{ marginTop: "20px" }}>
+    <div style={{ marginTop: "20px" }}>
       <h3>Agregar a la mesa</h3>
 
       {menu.length === 0 ? (
@@ -348,6 +327,7 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
       ) : (
         <>
           {/* Categorías de Comanda Express */}
+
           <div className="comanda-categorias">
             {categorias.map((cat) => {
               const activa = cat === categoriaActiva;
@@ -360,7 +340,6 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
                   className={`comanda-categoria ${activa ? "activa" : ""}`}
                   onClick={() => {
                     setCategoria(cat);
-                    setProductoId(null);
                   }}
                 >
                   {ETIQUETAS_CATEGORIA[cat] ?? cat}
@@ -370,73 +349,17 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
           </div>
 
           {/* Productos del menú */}
+
           <div className="comanda-productos-grid">
             {productosDeCategoria.map((p) => {
-              const seleccionado = productoId === p.producto_id;
               const esConQueso = p.categoria === "con_queso";
-              const esTaco= p.categoria === "tacos";
-              const esBebida = p.categoria === "frios";
+
               const llevaCarne = p.lleva_carne === 1;
 
-              // Categoría Con queso: venta directa
-              if (esConQueso || esTaco || esBebida) {
-                return (
-                  <div
-                    key={p.producto_id}
-                    className="comanda-producto comanda-producto-rapido"
-                  >
-                    <span className="comanda-producto-nombre">{p.nombre}</span>
-
-                    <span className="comanda-producto-precio">
-                      {formatearDinero(p.precio_centavos)}
-                    </span>
-
-                    <div className="comanda-producto-botones">
-                      {esConQueso && llevaCarne && esBebida ? (
-                        <>
-                          <button
-                            type="button"
-                            className="comanda-boton-normal"
-                            disabled={cargando || productoAgregando}
-                            onClick={() => handleAgregarRapido(p, "normal")}
-                          >
-                            + Normal
-                          </button>
-
-                          <button
-                            type="button"
-                            className="comanda-boton-suadero"
-                            disabled={cargando || productoAgregando}
-                            onClick={() => handleAgregarRapido(p, "suadero")}
-                          >
-                            + Suadero
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="comanda-boton-agregar"
-                          disabled={cargando || productoAgregando}
-                          onClick={() => handleAgregarRapido(p, null)}
-                        >
-                          + Agregar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              }
-
-              // Otras categorías
               return (
-                <button
+                <div
                   key={p.producto_id}
-                  type="button"
-                  disabled={cargando || productoAgregando}
-                  className={`comanda-producto ${
-                    seleccionado ? "seleccionado" : ""
-                  }`}
-                  onClick={() => setProductoId(p.producto_id)}
+                  className="comanda-producto comanda-producto-rapido"
                 >
                   <span className="comanda-producto-nombre">{p.nombre}</span>
 
@@ -444,71 +367,44 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
                     {formatearDinero(p.precio_centavos)}
                   </span>
 
-                  <span className="comanda-producto-accion">
-                    {seleccionado ? "✓ Seleccionado" : "+ Seleccionar"}
-                  </span>
-                </button>
+                  <div className="comanda-producto-botones">
+                    {esConQueso && llevaCarne ? (
+                      <>
+                        <button
+                          type="button"
+                          className="comanda-boton-normal"
+                          disabled={cargando || productoAgregando}
+                          onClick={() => handleAgregarRapido(p, "normal")}
+                        >
+                          + Normal
+                        </button>
+
+                        <button
+                          type="button"
+                          className="comanda-boton-suadero"
+                          disabled={cargando || productoAgregando}
+                          onClick={() => handleAgregarRapido(p, "suadero")}
+                        >
+                          + Suadero
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="comanda-boton-agregar"
+                        disabled={cargando || productoAgregando}
+                        onClick={() => handleAgregarRapido(p, null)}
+                      >
+                        + Agregar
+                      </button>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>
-
-          {categoriaActiva !== "con_queso" &&  categoriaActiva !== "tacos" && categoriaActiva !== "frios" &&(
-            <>
-              {/* Carne: solo aparece si el producto elegido la lleva */}
-              {productoElegido?.lleva_carne === 1 && (
-                <div style={{ marginTop: "10px" }}>
-                  <label>Carne: </label>
-                  <select
-                    value={carne}
-                    onChange={(e) => setCarne(e.target.value)}
-                  >
-                    {CARNES.map((c) => (
-                      <option key={c.valor} value={c.valor}>
-                        {c.etiqueta}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={cargando}
-                style={{ marginTop: "10px" }}
-              >
-                {cargando ? "Agregando..." : "Agregar"}
-              </button>
-            </>
-          )}
         </>
       )}
-    </form>
-  );
-
-  const seccionCerrarMesa = (
-    <div
-      style={{
-        marginTop: "30px",
-        paddingTop: "15px",
-        borderTop: "1px solid #ddd",
-      }}
-    >
-      <h3>Cerrar mesa</h3>
-      <button
-        type="button"
-        onClick={() => handleCerrarMesa(orden?.num_mesa)}
-        style={{
-          color: "#d9534f",
-          border: "1px solid #d9534f",
-          backgroundColor: "transparent",
-          borderRadius: "4px",
-          cursor: "pointer",
-          padding: "8px 12px",
-          fontWeight: "bold",
-        }}
-      >
-        💳 Cobrar y Cerrar Mesa {orden?.num_mesa}
-      </button>
     </div>
   );
 
@@ -516,7 +412,9 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
     <div
       style={{
         marginTop: "30px",
+
         paddingTop: "15px",
+
         borderTop: "1px solid #ddd",
       }}
     >
@@ -528,6 +426,10 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
           disabled={cargando}
           onClick={() => setMetodoPago("efectivo")}
           style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
             flex: 1,
             padding: "14px",
             borderRadius: "8px",
@@ -539,7 +441,8 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
             cursor: "pointer",
           }}
         >
-          💵 Efectivo
+          <Banknote size={30} strokeWidth={2} />
+          Efectivo
         </button>
 
         <button
@@ -547,6 +450,10 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
           disabled={cargando}
           onClick={() => setMetodoPago("tarjeta")}
           style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
             flex: 1,
             padding: "14px",
             borderRadius: "8px",
@@ -556,7 +463,8 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
             cursor: "pointer",
           }}
         >
-          💳 Mercado Pago
+          <CreditCard size={30} strokeWidth={2} />
+          Mercado Pago
         </button>
       </div>
 
@@ -574,6 +482,10 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
           cargando || !orden?.productos?.length || orden.total_centavos <= 0
         }
         style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px",
           width: "100%",
           padding: "14px 20px",
           backgroundColor: "#009745",
@@ -585,13 +497,14 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
           cursor: cargando ? "not-allowed" : "pointer",
         }}
       >
-        💳 Cobrar {formatearDinero(orden?.total_centavos ?? 0)} e imprimir
-        ticket
+        <ReceiptText size={30} strokeWidth={2} />
+        Cobrar {formatearDinero(orden?.total_centavos ?? 0)} e imprimir ticket
       </button>
     </div>
   );
 
   // 1. Esperando respuesta de la API
+
   if (cargando) {
     return (
       <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
@@ -601,45 +514,11 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
   }
 
   // 2. Falla real (servidor apagado, error 500, etc.)
+
   if (error) {
     return (
       <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
         <p style={{ color: "#d9534f" }}>⚠️ {error}</p>
-      </div>
-    );
-  }
-
-  // 3. Mesa cerrada: lo único posible es abrirla
-  if (!orden?.abierta) {
-    return (
-      <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
-        <h3>Mesa {mesaSeleccionada}</h3>
-        <p>⚠️ La mesa está cerrada actualmente.</p>
-
-        <button
-          type="button"
-          onClick={handleAbrirMesa}
-          disabled={cargando}
-          style={{
-            marginTop: "15px",
-            padding: "10px 20px",
-            backgroundColor: "#28a745",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            fontSize: "16px",
-            cursor: "pointer",
-            fontWeight: "bold",
-          }}
-        >
-          🟢 Abrir Mesa
-        </button>
-        {ventaCobrada && (
-          <TicketModal
-            venta={ventaCobrada}
-            onCerrar={() => setVentaCobrada(null)}
-          />
-        )}
       </div>
     );
   }
@@ -651,6 +530,7 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
           <span className="comanda-subtitulo">TACOS EL GARCITA · COMANDAS</span>
 
           <h2>Mesa {orden.num_mesa}</h2>
+
           <p>Selecciona productos y administra la comanda.</p>
         </div>
 
@@ -710,6 +590,7 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
                       title="Introducir cantidad exacta"
                       onClick={() => {
                         setCantidadEditando(producto.orden_id);
+
                         setCantidadTemporal(String(producto.cantidad));
                       }}
                     >
@@ -735,7 +616,7 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
                       title={`Eliminar ${producto.nombre}`}
                     >
                       <svg
-                        xmlns="http://www.w3.org/2000/svg"
+                        xmlns="http\://www.w3.org/2000/svg"
                         width="22"
                         height="22"
                         viewBox="0 0 24 24"
@@ -785,6 +666,7 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
                         type="button"
                         onClick={() => {
                           setCantidadEditando(null);
+
                           setCantidadTemporal("");
                         }}
                       >
@@ -796,74 +678,6 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
               </div>
             ))}
           </div>
-
-          {/* Panel de edición */}
-          {productoAeditar && (
-            <div
-              style={{
-                margin: "15px 0",
-                padding: "15px",
-                border: "2px solid #007bff",
-                borderRadius: "6px",
-                backgroundColor: "#f4f8ff",
-              }}
-            >
-              <h4>✏️ Editando: {productoAeditar.nombre}</h4>
-
-              <div style={{ marginBottom: "10px" }}>
-                <label>
-                  Cantidad:
-                  <input
-                    type="number"
-                    min="1"
-                    value={productoAeditar.cantidad}
-                    onChange={(e) =>
-                      setProductoAeditar({
-                        ...productoAeditar,
-                        cantidad: parseInt(e.target.value, 10) || 1,
-                      })
-                    }
-                    style={{ marginLeft: "8px", width: "60px" }}
-                  />
-                </label>
-              </div>
-
-              {/* La carne solo se edita si el producto la lleva */}
-              {editaLlevaCarne && (
-                <div style={{ marginBottom: "10px" }}>
-                  <label>
-                    Carne:
-                    <select
-                      value={productoAeditar.tipo_carne ?? "suadero"}
-                      onChange={(e) =>
-                        setProductoAeditar({
-                          ...productoAeditar,
-                          tipo_carne: e.target.value,
-                        })
-                      }
-                      style={{ marginLeft: "8px" }}
-                    >
-                      {CARNES.map((c) => (
-                        <option key={c.valor} value={c.valor}>
-                          {c.etiqueta}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              )}
-
-              <button
-                onClick={handleGuardarEdicion}
-                style={{ marginRight: "8px" }}
-              >
-                💾 Guardar
-              </button>
-              <button onClick={() => setProductoAeditar(null)}>
-                ❌ Cancelar
-              </button>
-            </div>
-          )}
 
           <h4>Total a pagar: {formatearDinero(orden.total_centavos)}</h4>
 
@@ -881,6 +695,15 @@ export default function DetalleMesa({ mesaSeleccionada, onMesaCerrada }) {
           )}
         </aside>
       </div>
+      {ventaCobrada && (
+        <TicketModal
+          venta={ventaCobrada}
+          onCerrar={() => {
+            setVentaCobrada(null);
+            onMesaCerrada?.();
+          }}
+        />
+      )}
     </div>
   );
 }
